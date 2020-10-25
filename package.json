@@ -2,10 +2,10 @@
   "name": "map-quiz",
   "version": "1.0.0",
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
     "start": "sirv public",
-    "deploy": "gh-pages -d public"
+    "dev": "rollup -c -w",
+    "build": "rollup -c",
+    "deploy": "npm run build && gh-pages -d public"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",
