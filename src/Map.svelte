@@ -1,152 +1,144 @@
 <script>
-	import { onMount } from 'svelte';
-	import mapbox from 'mapbox-gl';
-	
-	export let location = {
-		bounds: [[-10.760, 49.864], [1.863, 59.479]] // Lebanon bounding box
-	};
-	export let style;
-	
-	export let map;
-	let container;
-	let options;
-	
-	function resetView() {
-		map.fitBounds(location.bounds);
-	}
-	
-	if (location.bounds) {
-		options = { bounds: location.bounds };
-	} else if (location.lon && location.lat) {
-		options = {
-			center: [location.lon, location.lat]
-		}
-		if (location.zoom) {
-			options.zoom = location.zoom;
-		}
-	};
+  import { onMount } from "svelte";
+  import mapbox from "mapbox-gl";
 
-	onMount(() => {
-		const link = document.createElement('link');
-		link.rel = 'stylesheet';
-		link.href = 'https://unpkg.com/mapbox-gl/dist/mapbox-gl.css';
+  export let location = {
+    bounds: [
+      [-10.76, 49.864],
+      [1.863, 59.479],
+    ], // Lebanon bounding box
+  };
+  export let style;
 
-		link.onload = () => {
-			mapbox.accessToken = 'pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiemdYSVVLRSJ9.g3lbg_eN0kztmsfIPxa9MQ';
-			map = new mapbox.Map({
-				container,
-				style: style,
-				interactive: true,
-				...options
-			});
-			// map.scrollZoom.disable();
+  export let map;
+  let container;
+  let options;
 
-			map.on('load', function () {
+  function resetView() {
+    map.fitBounds(location.bounds);
+  }
 
-				loadMapLayers();
+  if (location.bounds) {
+    options = { bounds: location.bounds };
+  } else if (location.lon && location.lat) {
+    options = {
+      center: [location.lon, location.lat],
+    };
+    if (location.zoom) {
+      options.zoom = location.zoom;
+    }
+  }
 
-			})
-			
-		};
+  onMount(() => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://unpkg.com/mapbox-gl/dist/mapbox-gl.css";
 
-		document.head.appendChild(link);
+    link.onload = () => {
+      mapbox.accessToken =
+        "pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiemdYSVVLRSJ9.g3lbg_eN0kztmsfIPxa9MQ";
+      map = new mapbox.Map({
+        container,
+        style: style,
+        interactive: true,
+        ...options,
+      });
+      // map.scrollZoom.disable();
 
-		return () => {
-			map.remove();
-			link.parentNode.removeChild(link);
-		};
-	});
+      map.on("load", function () {
+        loadMapLayers();
+      });
+    };
 
-	function loadMapLayers(){
+    document.head.appendChild(link);
 
-		  // Configure the worldview for the country boundaries tileset
-		  const worldviewFilter=[
-      "all", [
+    return () => {
+      map.remove();
+      link.parentNode.removeChild(link);
+    };
+  });
+
+  function loadMapLayers() {
+    // Configure the worldview for the country boundaries tileset
+    const worldviewFilter = [
+      "all",
+      [
         "any",
-        [
-          "in",
-          "US",
-          ["get", "worldview"]
-        ],
-        [
-          "==",
-          "all",
-          ["get", "worldview"]
-        ]
-      ]
-    ]
+        ["in", "US", ["get", "worldview"]],
+        ["==", "all", ["get", "worldview"]],
+      ],
+    ];
 
-		map.addSource('countries', {
-    type: 'vector',
-    url: 'mapbox://mapbox.country-boundaries-v1',
-    promoteId: 'wikidata_id'
-  });
+    map.addSource("countries", {
+      type: "vector",
+      url: "mapbox://mapbox.country-boundaries-v1",
+      promoteId: "wikidata_id",
+    });
 
-  map.addLayer({
-    'id': 'countries fill',
-    'type': 'fill',
-    'source': 'countries',
-    'source-layer': 'country_boundaries',
-    'layout': {},
-    'paint': {
-		'fill-color':'white',
-		'fill-opacity':0.1
-    },
-    'filter': worldviewFilter
-  });
+    map.addLayer({
+      id: "countries fill",
+      type: "fill",
+      source: "countries",
+      "source-layer": "country_boundaries",
+      layout: {},
+      paint: {
+        "fill-color": "white",
+        "fill-opacity": 0.1,
+      },
+      filter: worldviewFilter,
+    });
 
-  map.addLayer({
-    'id': 'countries outline',
-    'type': 'line',
-    'source': 'countries',
-    'source-layer': 'country_boundaries',
-    'layout': {},
-    'paint': {
-		'line-color':'white',
-		'line-width':2
-    },
-    'filter': worldviewFilter
-  });
+    map.addLayer({
+      id: "countries outline",
+      type: "line",
+      source: "countries",
+      "source-layer": "country_boundaries",
+      layout: {},
+      paint: {
+        "line-color": "white",
+        "line-width": 2,
+      },
+      filter: worldviewFilter,
+    });
 
-  			// Add new boundary to the map
+    // Add new boundary to the map
 
-			map.addLayer({
-				'id': 'boundary',
-				'type': 'circle',
-				'source': {
-				'type': 'geojson',
-				'data': null
-			},
-				'paint': {
-		'circle-color':'white',
-		'circle-stroke-color':'white',
-		'circle-stroke-width':2,
-      'circle-opacity': 0.5
-    },
-				'layout': {}
-			});
-
-	}
+    map.addLayer({
+      id: "boundary",
+      type: "circle",
+      source: {
+        type: "geojson",
+        data: null,
+      },
+      paint: {
+        "circle-color": "white",
+        "circle-stroke-color": "white",
+        "circle-stroke-width": 2,
+        "circle-opacity": 0.5,
+      },
+      layout: {},
+    });
+  }
 </script>
 
 <style>
-	div {
-		width: 60%;
-		height: 100%;
-		position: fixed;
-		right: 0;
-	}
-	@media (max-width: 600px) {
-		div {
-			width: 100%;
-			height: 75%;
-			position: absolute;
-		}
-	}
+  div {
+    width: 60%;
+    height: 100%;
+    position: fixed;
+    right: 0;
+  }
+  @media (max-width: 600px) {
+    div {
+      width: 100%;
+      height: 75%;
+      position: absolute;
+    }
+  }
 </style>
 
 <div bind:this={container}>
-	{#if map}
-		<slot></slot>
-	{/if}
+  {#if map}
+    <slot />
+  {/if}
 </div>

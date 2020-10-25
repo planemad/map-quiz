@@ -1,15 +1,7 @@
-import {
-  csvParse
-} from 'd3-dsv';
-import {
-  bbox
-} from '@turf/turf';
-import {
-  parse
-} from './wellknown.js';
+import { bbox } from "@turf/turf";
+import { parse } from "./wellknown.js";
 
-
-const apiurl = 'https://query.wikidata.org/sparql?query=';
+const apiurl = "https://query.wikidata.org/sparql?query=";
 
 // Function to get place names and codes
 export async function getPlaces() {
@@ -28,10 +20,12 @@ WHERE
 }
 ORDER BY ?countryLabel
 `;
-  let response = await fetch(apiurl + encodeURIComponent(query), {headers: {accept: "application/sparql-results+json"}});
+  let response = await fetch(apiurl + encodeURIComponent(query), {
+    headers: { accept: "application/sparql-results+json" },
+  });
   let json = await response.json();
   let data = json.results.bindings;
-  console.log(data)
+  console.log(data);
   // data = [{
   //   code: "E08000001",
   //   name: "Bolton"
@@ -45,23 +39,28 @@ ORDER BY ?countryLabel
   //   code: "E080000037",
   //   name: "Bolton3"
   // }];
-  
+
   return data;
 }
 
 // Function to get boundary polygon based on place code
 export async function getLocation(item) {
-  console.log(item)
+  console.log(item);
   let query = `
   select ?location where {
-    wd:${item.value.replace('http://www.wikidata.org/entity/','')} wdt:P625 ?location. # And location
+    wd:${item.value.replace(
+      "http://www.wikidata.org/entity/",
+      ""
+    )} wdt:P625 ?location. # And location
 service wikibase:label { bd:serviceParam wikibase:language "en". } # Show names in Dutch
 }
 `;
-let response = await fetch(apiurl + encodeURIComponent(query), {headers: {accept: "application/sparql-results+json"}});
-let json = await response.json();
-let data = json.results.bindings;
-console.log(data)
+  let response = await fetch(apiurl + encodeURIComponent(query), {
+    headers: { accept: "application/sparql-results+json" },
+  });
+  let json = await response.json();
+  let data = json.results.bindings;
+  console.log(data);
 
   // Convert polygon from WKT to geojson format
   let geojson = await parse(data[0].location.value);
@@ -71,7 +70,7 @@ console.log(data)
 
   return {
     geometry: geojson,
-    bounds: bounds
+    bounds: bounds,
   };
 }
 
@@ -84,11 +83,11 @@ export function rndPlace(places) {
 // Function to return an array in a random order
 export function shuffle(array) {
   var currentIndex = array.length,
-    temporaryValue, randomIndex;
+    temporaryValue,
+    randomIndex;
 
   // While there remain elements to shuffle...
   while (0 !== currentIndex) {
-
     // Pick a remaining element...
     randomIndex = Math.floor(Math.random() * currentIndex);
     currentIndex -= 1;
