@@ -65,36 +65,28 @@
         [countryQid],
         "hsl(30, 0%, 69%)",
         "hsla(0, 0%, 94%, 0)",
-	  ]);
-	  
-
+      ]);
 
       // Fit map to boundary
       map.easeTo({
         center: result.geometry.coordinates,
         zoom: 4,
         duration: 1000,
-	  });
-	  
-	  setTimeout(function(){ 
-		let boundary=map.querySourceFeatures('composite',{
-		  sourceLayer: 'country_boundaries',
-		  filter: ["==",
-        ["get", "wikidata_id"],
-        countryQid]
-	  })
+      });
 
-	  console.log(boundary)
+      // setTimeout(function () {
+      //   let boundary = map.querySourceFeatures("composite", {
+      //     sourceLayer: "country_boundaries",
+      //     filter: ["==", ["get", "wikidata_id"], countryQid],
+      //   });
 
-		map.fitBounds(bbox(boundary[0]), {
-padding: 20,
-maxZoom: 12
-});
+      //   console.log(boundary);
 
-	   }, 1000);
-
-
-	  
+      //   map.fitBounds(bbox(boundary[0]), {
+      //     padding: 20,
+      //     maxZoom: 12,
+      //   });
+      // }, 1000);
 
     });
   }

@@ -6,7 +6,7 @@
     bounds: [
       [-10.76, 49.864],
       [1.863, 59.479],
-    ], // Lebanon bounding box
+    ], 
   };
   export let style;
 
@@ -59,15 +59,19 @@
   });
 
   function loadMapLayers() {
-    // Configure the worldview for the country boundaries tileset
+	  
+	// Configure the worldview for the country boundaries tileset
+	// https://docs.mapbox.com/vector-tiles/reference/mapbox-countries-v1/
+
     const worldviewFilter = [
       "all",
       [
         "any",
         ["in", "US", ["get", "worldview"]],
-        ["==", "all", ["get", "worldview"]],
-      ],
-    ];
+        ["==", "all", ["get", "worldview"]]
+	  ],
+	  ["!=", "true", ["get", "disputed"]]
+    ]; 
 
     map.setFilter("country-boundaries", worldviewFilter);
     map.setFilter("country-boundaries outline", worldviewFilter);
