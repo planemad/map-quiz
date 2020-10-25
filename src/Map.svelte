@@ -69,37 +69,8 @@
       ],
     ];
 
-    map.addSource("countries", {
-      type: "vector",
-      url: "mapbox://mapbox.country-boundaries-v1",
-      promoteId: "wikidata_id",
-    });
-
-    map.addLayer({
-      id: "countries fill",
-      type: "fill",
-      source: "countries",
-      "source-layer": "country_boundaries",
-      layout: {},
-      paint: {
-        "fill-color": "white",
-        "fill-opacity": 0.1,
-      },
-      filter: worldviewFilter,
-    });
-
-    map.addLayer({
-      id: "countries outline",
-      type: "line",
-      source: "countries",
-      "source-layer": "country_boundaries",
-      layout: {},
-      paint: {
-        "line-color": "white",
-        "line-width": 2,
-      },
-      filter: worldviewFilter,
-    });
+    map.setFilter("country-boundaries", worldviewFilter);
+    map.setFilter("country-boundaries outline", worldviewFilter);
 
     // Add new boundary to the map
 
@@ -111,10 +82,10 @@
         data: null,
       },
       paint: {
-        "circle-color": "white",
+        "circle-radius": 3,
+        "circle-color": "hsla(0, 0%, 0%, 0.2)",
         "circle-stroke-color": "white",
-        "circle-stroke-width": 2,
-        "circle-opacity": 0.5,
+        "circle-stroke-width": 1,
       },
       layout: {},
     });

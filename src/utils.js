@@ -6,18 +6,12 @@ const apiurl = "https://query.wikidata.org/sparql?query=";
 // Function to get place names and codes
 export async function getPlaces() {
   let query = `
-SELECT DISTINCT ?country ?countryLabel ?capital ?capitalLabel
-WHERE
-{
-  ?country wdt:P31 wd:Q3624078 .
-  #not a former country
-  FILTER NOT EXISTS {?country wdt:P31 wd:Q3024240}
-  #and no an ancient civilisation (needed to exclude ancient Egypt)
-  FILTER NOT EXISTS {?country wdt:P31 wd:Q28171280}
-  OPTIONAL { ?country wdt:P36 ?capital } .
-
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
-}
+  # List of all countries based on ISO 3166-2 country code with their capitals 
+  SELECT DISTINCT ?country ?countryLabel ?capital ?capitalLabel WHERE {
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+  ?country wdt:P297 ?ISO_3166_1_alpha_2_code. 
+    OPTIONAL { ?country wdt:P36 ?capital } .
+  }
 ORDER BY ?countryLabel
 `;
   let response = await fetch(apiurl + encodeURIComponent(query), {

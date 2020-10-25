@@ -2,9 +2,10 @@
   import Map from "./Map.svelte";
   import Panel from "./Panel.svelte";
   import { getPlaces, getLocation, rndPlace, shuffle } from "./utils.js";
+  import { bbox } from "@turf/turf";
 
   let map;
-  let mapstyle = "mapbox://styles/mapbox/satellite-v9";
+  let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
   let places;
 
   let game = {
@@ -50,34 +51,51 @@
         ""
       );
 
-      map.setFilter("countries fill", [
-        "==",
+      map.setPaintProperty("country-boundaries", "fill-color", [
+        "match",
         ["get", "wikidata_id"],
-        countryQid,
-      ]);
-      map.setFilter("countries outline", [
-        "==",
-        ["get", "wikidata_id"],
-        countryQid,
+        [countryQid],
+        "hsla(0, 0%, 94%, 0)",
+        "hsla(36, 0%, 100%, 0.89)",
       ]);
 
-      map.setFeatureState(
-        {
-          source: "countries",
-          sourceLayer: "country_boundaries",
-          id: countryQid,
-        },
-        {
-          active: true,
-        }
-      );
+      map.setPaintProperty("country-boundaries outline", "line-color", [
+        "match",
+        ["get", "wikidata_id"],
+        [countryQid],
+        "hsl(30, 0%, 69%)",
+        "hsla(0, 0%, 94%, 0)",
+	  ]);
+	  
+
 
       // Fit map to boundary
       map.easeTo({
-          center: result.geometry.coordinates,
-          zoom: 4,
-          duration: 1000,
-        });
+        center: result.geometry.coordinates,
+        zoom: 4,
+        duration: 1000,
+	  });
+	  
+	  setTimeout(function(){ 
+		let boundary=map.querySourceFeatures('composite',{
+		  sourceLayer: 'country_boundaries',
+		  filter: ["==",
+        ["get", "wikidata_id"],
+        countryQid]
+	  })
+
+	  console.log(boundary)
+
+		map.fitBounds(bbox(boundary[0]), {
+padding: 20,
+maxZoom: 12
+});
+
+	   }, 1000);
+
+
+	  
+
     });
   }
 
