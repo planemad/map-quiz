@@ -64,7 +64,11 @@ ORDER BY ?countryLabel
     }
     game.places = shuffle(game.places);
 
-    // Get capital location
+    // Get capital location and add a marker
+
+    if(place.hasOwnProperty("capital")){
+
+
     let query = `
   select ?capitaLocation where {
     wd:${place.capital.value.replace(
@@ -75,61 +79,62 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
 }
 `;
     queryWikidata(query).then((result) => {
-      // Add a marker for the capital
       if (result[0].hasOwnProperty("capitaLocation")) {
         let capitalLocation = parse(result[0].capitaLocation.value);
         map.getSource("capital-location").setData(capitalLocation);
       }
-
-      // Update boundary
-      let countryQid = place.country.value.replace(
-        "http://www.wikidata.org/entity/",
-        ""
-      );
-
-      // Hide country labels
-      map.setLayoutProperty("country-label", "visibility", "none");
-
-      map.setPaintProperty("country-boundaries", "fill-color", [
-        "match",
-        ["get", "wikidata_id"],
-        countryQid,
-        "hsla(0, 0%, 94%, 0)",
-        "hsla(36, 0%, 100%, 0.89)",
-      ]);
-
-      map.setPaintProperty("country-boundaries-outline", "line-color", [
-        "match",
-        ["get", "wikidata_id"],
-        countryQid,
-        "hsl(33, 0%, 38%)",
-        "hsla(0, 0%, 100%, 0)",
-      ]);
-
-      map.setPaintProperty("admin-boundaries-line", "line-color", [
-        "match",
-        ["get", "iso_3166_1"],
-        place.iso_3166_1.value,
-        "hsl(0, 0%, 100%)",
-        "hsl(0, 0%, 60%)",
-      ]);
-
-      // Pan to place
-      map.easeTo({
-        center: countryLocation.coordinates,
-        zoom: 3,
-        duration: 1000,
-        bearing: Math.random() * 360,
-      });
-
-      // Zoom in after 4 seconds
-      setTimeout(function () {
-        map.easeTo({
-          zoom: 5,
-          duration: 1000,
-        });
-      }, 4000);
     });
+
+  }
+
+    // Update boundary
+    let countryQid = place.country.value.replace(
+      "http://www.wikidata.org/entity/",
+      ""
+    );
+
+    // Hide country labels
+    map.setLayoutProperty("country-label", "visibility", "none");
+
+    map.setPaintProperty("country-boundaries", "fill-color", [
+      "match",
+      ["get", "wikidata_id"],
+      countryQid,
+      "hsla(0, 0%, 94%, 0)",
+      "hsla(36, 0%, 100%, 0.89)",
+    ]);
+
+    map.setPaintProperty("country-boundaries-outline", "line-color", [
+      "match",
+      ["get", "wikidata_id"],
+      countryQid,
+      "hsl(33, 0%, 38%)",
+      "hsla(0, 0%, 100%, 0)",
+    ]);
+
+    map.setPaintProperty("admin-boundaries-line", "line-color", [
+      "match",
+      ["get", "iso_3166_1"],
+      place.iso_3166_1.value,
+      "hsl(0, 0%, 100%)",
+      "hsl(0, 0%, 60%)",
+    ]);
+
+    // Pan to place
+    map.easeTo({
+      center: countryLocation.coordinates,
+      zoom: 3,
+      duration: 1000,
+      bearing: Math.random() * 360,
+    });
+
+    // Zoom in after 4 seconds
+    setTimeout(function () {
+      map.easeTo({
+        zoom: 5,
+        duration: 1000,
+      });
+    }, 4000);
   }
 
   // Check if chosen place is correct
