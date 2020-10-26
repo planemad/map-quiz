@@ -1,8 +1,8 @@
 <script>
   import Map from "./Map.svelte";
   import Panel from "./Panel.svelte";
-  import { getPlaces, getLocation, rndPlace, shuffle } from "./utils.js";
-  import { bbox } from "@turf/turf";
+  import { queryWikidata, rndPlace, shuffle } from "./utils.js";
+  import { parse } from "./wellknown.js";
 
   let map;
   let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
@@ -17,6 +17,22 @@
     message: null,
   };
 
+  // Get geography codes and names from API (initiation of app)
+
+  let sparql = `
+  # List of all countries based on ISO 3166-2 country code with their capitals 
+  SELECT DISTINCT ?iso_3166_1 ?location ?country ?countryLabel ?capital ?capitalLabel WHERE {
+  ?country wdt:P297 ?iso_3166_1. 
+  ?country wdt:P625 ?location
+  OPTIONAL { ?country wdt:P36 ?capital }.
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+  }
+ORDER BY ?countryLabel
+`;
+  queryWikidata(sparql).then((result) => {
+    places = result;
+  });
+
   // New turn. Randomly select a place + get its location
   function nextTurn() {
     if (!game.started) {
@@ -26,6 +42,7 @@
 
     // Get a random place (right answer)
     let place = rndPlace(places);
+    let countryLocation = parse(place.location.value);
     game.place = place;
 
     // Create an array of possible answers
@@ -40,10 +57,22 @@
     game.places = shuffle(game.places);
 
     // Get capital location
-    let boundary;
-    getLocation(place.capital).then((result) => {
+    let query = `
+  select ?location where {
+    wd:${place.capital.value.replace(
+      "http://www.wikidata.org/entity/",
+      ""
+    )} wdt:P625 ?location. # And location
+service wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+`;
+    queryWikidata(query).then((result) => {
+      // Convert polygon from WKT to geojson format
+
+      let capitalLocation = parse(result[0].location.value);
+
       // Update location circle
-      map.getSource(layerId).setData(result.geometry);
+      map.getSource(layerId).setData(capitalLocation);
 
       // Update boundary
       let countryQid = place.country.value.replace(
@@ -59,7 +88,7 @@
         "hsla(36, 0%, 100%, 0.89)",
       ]);
 
-      map.setPaintProperty("country-boundaries outline", "line-color", [
+      map.setPaintProperty("country-boundaries-outline", "line-color", [
         "match",
         ["get", "wikidata_id"],
         [countryQid],
@@ -67,11 +96,28 @@
         "hsla(0, 0%, 94%, 0)",
       ]);
 
+      map.setPaintProperty("admin-boundaries-line", "line-color", [
+        "match",
+        ["get", "iso_3166_1"],
+        [place.iso_3166_1.value],
+        "hsl(0, 0%, 100%)",
+        "hsla(0, 0%, 60%, 0)",
+      ]);
+
+      map.setPaintProperty("roads", "line-color", [
+        "match",
+        ["get", "iso_3166_1"],
+        [place.iso_3166_1.value],
+        "hsl(57, 100%, 56%)",
+        "hsl(0, 0%, 60%)",
+      ]);
+
       // Fit map to boundary
       map.easeTo({
-        center: result.geometry.coordinates,
+        center: countryLocation.coordinates,
         zoom: 4,
         duration: 1000,
+        bearing: Math.random() * 360,
       });
 
       // setTimeout(function () {
@@ -87,7 +133,6 @@
       //     maxZoom: 12,
       //   });
       // }, 1000);
-
     });
   }
 
@@ -103,11 +148,6 @@
     game.place = null;
     game.places = null;
   }
-
-  // Get geography codes and names from API (initiation of app)
-  getPlaces().then((result) => {
-    places = result;
-  });
 </script>
 
 <style>

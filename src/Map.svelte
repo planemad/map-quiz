@@ -74,7 +74,7 @@
     ]; 
 
     map.setFilter("country-boundaries", worldviewFilter);
-    map.setFilter("country-boundaries outline", worldviewFilter);
+    map.setFilter("country-boundaries-outline", worldviewFilter);
 
     // Add new boundary to the map
 

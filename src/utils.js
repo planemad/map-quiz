@@ -3,70 +3,18 @@ import { parse } from "./wellknown.js";
 
 const apiurl = "https://query.wikidata.org/sparql?query=";
 
-// Function to get place names and codes
-export async function getPlaces() {
-  let query = `
-  # List of all countries based on ISO 3166-2 country code with their capitals 
-  SELECT DISTINCT ?country ?countryLabel ?capital ?capitalLabel WHERE {
-    SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
-  ?country wdt:P297 ?ISO_3166_1_alpha_2_code. 
-    OPTIONAL { ?country wdt:P36 ?capital } .
-  }
-ORDER BY ?countryLabel
-`;
-  let response = await fetch(apiurl + encodeURIComponent(query), {
+// Query Wikidata using SPARQL
+// https://query.wikidata.org
+
+export async function queryWikidata(sparql){
+  let response = await fetch(apiurl + encodeURIComponent(sparql), {
     headers: { accept: "application/sparql-results+json" },
   });
   let json = await response.json();
   let data = json.results.bindings;
-  console.log(data);
-  // data = [{
-  //   code: "E08000001",
-  //   name: "Bolton"
-  // },{
-  //   code: "E08000003",
-  //   name: "Bolton1"
-  // },{
-  //   code: "E08000004",
-  //   name: "Bolton2"
-  // },{
-  //   code: "E080000037",
-  //   name: "Bolton3"
-  // }];
-
   return data;
 }
 
-// Function to get boundary polygon based on place code
-export async function getLocation(item) {
-  console.log(item);
-  let query = `
-  select ?location where {
-    wd:${item.value.replace(
-      "http://www.wikidata.org/entity/",
-      ""
-    )} wdt:P625 ?location. # And location
-service wikibase:label { bd:serviceParam wikibase:language "en". } # Show names in Dutch
-}
-`;
-  let response = await fetch(apiurl + encodeURIComponent(query), {
-    headers: { accept: "application/sparql-results+json" },
-  });
-  let json = await response.json();
-  let data = json.results.bindings;
-  console.log(data);
-
-  // Convert polygon from WKT to geojson format
-  let geojson = await parse(data[0].location.value);
-
-  // Get the lon/lat bounding box of the polygon
-  let bounds = await bbox(geojson);
-
-  return {
-    geometry: geojson,
-    bounds: bounds,
-  };
-}
 
 // Select a random place from an array of places
 export function rndPlace(places) {
