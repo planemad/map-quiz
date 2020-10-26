@@ -17,16 +17,25 @@
     message: null,
   };
 
-  // Get geography codes and names from API (initiation of app)
-
+  // Get list of countries and associated trivia from Wikidata
   let sparql = `
   # List of all countries based on ISO 3166-2 country code with their capitals 
-  SELECT DISTINCT ?iso_3166_1 ?location ?country ?countryLabel ?capital ?capitalLabel WHERE {
+  SELECT DISTINCT ?iso_3166_1 (SAMPLE(?location) as ?location) ?country ?countryLabel ?flag (SAMPLE(?capital) as ?capital) (SAMPLE(?capitalLabel) as ?capitalLabel) (GROUP_CONCAT(DISTINCT ?languageLabel; SEPARATOR=", ") AS ?languages) WHERE {
   ?country wdt:P297 ?iso_3166_1. 
-  ?country wdt:P625 ?location
+  ?country wdt:P625 ?location.
+  OPTIONAL { ?country wdt:P37 ?language }.
+  OPTIONAL { ?country wdt:P41 ?flag }.
   OPTIONAL { ?country wdt:P36 ?capital }.
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
+    # Retrieve labels to enable group_concat 
+    # https://stackoverflow.com/questions/48855767/group-concat-not-working
+    SERVICE wikibase:label { 
+    bd:serviceParam wikibase:language "en". 
+    ?country rdfs:label ?countryLabel . 
+    ?capital rdfs:label ?capitalLabel . 
+    ?language rdfs:label ?languageLabel 
   }
+  }
+GROUP BY ?iso_3166_1 ?country ?countryLabel ?flag
 ORDER BY ?countryLabel
 `;
   queryWikidata(sparql).then((result) => {
@@ -38,7 +47,6 @@ ORDER BY ?countryLabel
     if (!game.started) {
       game.started = true;
     }
-    let layerId = "boundary";
 
     // Get a random place (right answer)
     let place = rndPlace(places);
@@ -58,21 +66,20 @@ ORDER BY ?countryLabel
 
     // Get capital location
     let query = `
-  select ?location where {
+  select ?capitaLocation where {
     wd:${place.capital.value.replace(
       "http://www.wikidata.org/entity/",
       ""
-    )} wdt:P625 ?location. # And location
+    )} wdt:P625 ?capitaLocation.
 service wikibase:label { bd:serviceParam wikibase:language "en". }
 }
 `;
     queryWikidata(query).then((result) => {
-      // Convert polygon from WKT to geojson format
-
-      let capitalLocation = parse(result[0].location.value);
-
-      // Update location circle
-      map.getSource(layerId).setData(capitalLocation);
+      // Add a marker for the capital
+      if (result[0].hasOwnProperty("capitaLocation")) {
+        let capitalLocation = parse(result[0].capitaLocation.value);
+        map.getSource("capital-location").setData(capitalLocation);
+      }
 
       // Update boundary
       let countryQid = place.country.value.replace(
@@ -80,10 +87,13 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
         ""
       );
 
+      // Hide country labels
+      map.setLayoutProperty("country-label", "visibility", "none");
+
       map.setPaintProperty("country-boundaries", "fill-color", [
         "match",
         ["get", "wikidata_id"],
-        [countryQid],
+        countryQid,
         "hsla(0, 0%, 94%, 0)",
         "hsla(36, 0%, 100%, 0.89)",
       ]);
@@ -91,53 +101,43 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
       map.setPaintProperty("country-boundaries-outline", "line-color", [
         "match",
         ["get", "wikidata_id"],
-        [countryQid],
-        "hsl(30, 0%, 69%)",
-        "hsla(0, 0%, 94%, 0)",
+        countryQid,
+        "hsl(33, 100%, 56%)",
+        "hsla(0, 0%, 100%, 0)",
       ]);
 
       map.setPaintProperty("admin-boundaries-line", "line-color", [
         "match",
         ["get", "iso_3166_1"],
-        [place.iso_3166_1.value],
+        place.iso_3166_1.value,
         "hsl(0, 0%, 100%)",
-        "hsla(0, 0%, 60%, 0)",
-      ]);
-
-      map.setPaintProperty("roads", "line-color", [
-        "match",
-        ["get", "iso_3166_1"],
-        [place.iso_3166_1.value],
-        "hsl(57, 100%, 56%)",
         "hsl(0, 0%, 60%)",
       ]);
 
       // Fit map to boundary
       map.easeTo({
         center: countryLocation.coordinates,
-        zoom: 4,
+        zoom: 3,
         duration: 1000,
         bearing: Math.random() * 360,
       });
 
-      // setTimeout(function () {
-      //   let boundary = map.querySourceFeatures("composite", {
-      //     sourceLayer: "country_boundaries",
-      //     filter: ["==", ["get", "wikidata_id"], countryQid],
-      //   });
+      setTimeout(function () {
+        map.easeTo({
+          zoom: 5,
+          duration: 1000,
+        });
+      }, 4000);
 
-      //   console.log(boundary);
-
-      //   map.fitBounds(bbox(boundary[0]), {
-      //     padding: 20,
-      //     maxZoom: 12,
-      //   });
-      // }, 1000);
+      console.log(map.getStyle());
     });
   }
 
   // Check if chosen place is correct
   function checkPlace(code) {
+    // Show country labels
+    map.setLayoutProperty("country-label", "visibility", "visible");
+
     if (code == game.place.countryLabel.value) {
       game.score += 1;
       game.message = `You got it!`;
@@ -147,6 +147,11 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
     game.turn += 1;
     game.place = null;
     game.places = null;
+  }
+
+  // Retrieve commons thumbnail image from url
+  function commonsImage(filePath, width) {
+    return `${filePath}?width=${width}px`;
   }
 </script>
 
@@ -183,7 +188,11 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
       {#each game.places as place}
         <button
           class="block"
-          on:click={checkPlace(place.countryLabel.value)}>{place.countryLabel.value}</button>
+          on:click={checkPlace(place.countryLabel.value)}>{place.countryLabel.value}
+          {#if place.hasOwnProperty('flag')}
+            <img src={commonsImage(place.flag.value, 30)} />
+          {/if}
+        </button>
       {/each}
     {:else if game.message}
       <h3>{game.message}</h3>

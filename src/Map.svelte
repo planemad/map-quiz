@@ -79,7 +79,7 @@
     // Add new boundary to the map
 
     map.addLayer({
-      id: "boundary",
+      id: "capital-location",
       type: "circle",
       source: {
         type: "geojson",
@@ -87,7 +87,7 @@
       },
       paint: {
         "circle-radius": 3,
-        "circle-color": "hsla(0, 0%, 0%, 0.2)",
+        "circle-color": "hsla(355, 100%, 50%, 0.5)",
         "circle-stroke-color": "white",
         "circle-stroke-width": 1,
       },
