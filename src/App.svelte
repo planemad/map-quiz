@@ -48,7 +48,7 @@ ORDER BY ?countryLabel
     // Create an array of possible answers
     game.places = [];
     game.places.push(place);
-    while (game.places.length < 3) {
+    while (game.places.length < 5) {
       let place = rndPlace(places);
       if (!game.places.includes(place)) {
         game.places.push(place);
