@@ -102,7 +102,7 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
         "match",
         ["get", "wikidata_id"],
         countryQid,
-        "hsl(33, 100%, 56%)",
+        "hsl(33, 0%, 38%)",
         "hsla(0, 0%, 100%, 0)",
       ]);
 
@@ -114,7 +114,7 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
         "hsl(0, 0%, 60%)",
       ]);
 
-      // Fit map to boundary
+      // Pan to place
       map.easeTo({
         center: countryLocation.coordinates,
         zoom: 3,
@@ -122,14 +122,13 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
         bearing: Math.random() * 360,
       });
 
+      // Zoom in after 4 seconds
       setTimeout(function () {
         map.easeTo({
           zoom: 5,
           duration: 1000,
         });
       }, 4000);
-
-      console.log(map.getStyle());
     });
   }
 
@@ -190,7 +189,9 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
           class="block"
           on:click={checkPlace(place.countryLabel.value)}>{place.countryLabel.value}
           {#if place.hasOwnProperty('flag')}
-            <img src={commonsImage(place.flag.value, 30)} />
+            <img
+              alt="Flag of {place.countryLabel.value}"
+              src={commonsImage(place.flag.value, 30)} />
           {/if}
         </button>
       {/each}
