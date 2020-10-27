@@ -181,6 +181,10 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
     display: block;
     width: 100%;
   }
+  footer {
+		position: absolute;
+		bottom: 10px;
+	}
 </style>
 
 <Panel>
@@ -211,7 +215,11 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
       <h3>{game.message}</h3>
       <button on:click={nextTurn}>Show me another!</button>
     {/if}
+    <footer>
+      <a href="https://github.com/planemad/map-quiz/tree/main">Source Code</a>
+    </footer>
   </main>
+
 </Panel>
 
 <Map style={mapstyle} bind:map />
