@@ -139,8 +139,15 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
 
   // Check if chosen place is correct
   function checkPlace(code) {
+
     // Show country labels
+    map.easeTo({
+      zoom: 3,
+      bearing: 0,
+      duration: 1000,
+    });
     map.setLayoutProperty("country-label", "visibility", "visible");
+
 
     if (code == game.place.countryLabel.value) {
       game.score += 1;
