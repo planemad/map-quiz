@@ -2,6 +2,11 @@
   import { onMount } from "svelte";
   import mapbox from "mapbox-gl";
 
+  // Worldview for disputed areas. 
+  // https://docs.mapbox.com/vector-tiles/reference/mapbox-boundaries-v3/#--polygon---worldview-text
+  export let worldview = "US";
+
+  // Initial map location
   export let location = {
     bounds: [
       [-10.76, 49.864],
@@ -20,13 +25,6 @@
 
   if (location.bounds) {
     options = { bounds: location.bounds };
-  } else if (location.lon && location.lat) {
-    options = {
-      center: [location.lon, location.lat],
-    };
-    if (location.zoom) {
-      options.zoom = location.zoom;
-    }
   }
 
   onMount(() => {
@@ -67,7 +65,7 @@
       "all",
       [
         "any",
-        ["in", "US", ["get", "worldview"]],
+        ["in", worldview, ["get", "worldview"]],
         ["==", "all", ["get", "worldview"]]
 	  ],
 	  ["!=", "true", ["get", "disputed"]]

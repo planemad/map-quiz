@@ -1,27 +1,68 @@
+<!-- 
+  How the map quiz works:
+  1. Download a list of countries with an ISO 3166-1 code from Wikidata
+  2. Randomly choose one country for the round
+
+-->
 <script>
   import Map from "./Map.svelte";
   import Panel from "./Panel.svelte";
   import { queryWikidata, rndPlace, shuffle } from "./utils.js";
   import { parse } from "./wellknown.js";
+  import countries from "./data/mapbox-countries-v1.json";
 
   let map;
   let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
-  let places;
+
+  let countryList;
+
+  let options = {
+    locale: null,
+    language: "ta",
+    mapWorldview: "US", // Set worldview to use for disputed areas
+    choices: 4,
+  };
 
   let game = {
     started: false,
     turn: 0,
     score: 0,
+    endTurn: false,
     place: null,
-    places: null,
+    choices: null,
     message: null,
   };
 
-  // Get list of countries and associated trivia from Wikidata
+  // Customize to user language and location
+
+  options.locale ? null : detectLocale();
+
+  function detectLocale() {
+    let locale = navigator.language;
+    options.language = locale.split("-")[0];
+    if (["IN", "JP", "CN"].indexOf(locale.split("-")[1]) >= 0) {
+      options.mapWorldview = locale.split("-")[1];
+    } else {
+      options.mapWorldview = "US";
+    }
+  }
+
+  // Build a list of Wikidata qids to query from the Mapbox Countries list
+  // Filter by selected worldview and undisputed countries
+  let countryQids = countries
+    .filter(
+      (d) =>
+        (d.worldview == "all" || d.worldview == options.mapWorldview) &&
+        d.disputed == "FALSE"
+    )
+    .map((d) => d.wikidata_id);
+
+  // Get list of countries from Wikidata
   let sparql = `
   # List of all countries based on ISO 3166-2 country code with their capitals 
   SELECT DISTINCT ?iso_3166_1 (SAMPLE(?location) as ?location) ?country ?countryLabel ?flag (SAMPLE(?capital) as ?capital) (SAMPLE(?capitalLabel) as ?capitalLabel) (GROUP_CONCAT(DISTINCT ?languageLabel; SEPARATOR=", ") AS ?languages) WHERE {
-  ?country wdt:P297 ?iso_3166_1. 
+  VALUES ?country { ${countryQids.join(" ").replace(/Q/g, "wd:Q")}}
+    ?country wdt:P297 ?iso_3166_1. 
   ?country wdt:P625 ?location.
   OPTIONAL { ?country wdt:P37 ?language }.
   OPTIONAL { ?country wdt:P41 ?flag }.
@@ -29,7 +70,7 @@
     # Retrieve labels to enable group_concat 
     # https://stackoverflow.com/questions/48855767/group-concat-not-working
     SERVICE wikibase:label { 
-    bd:serviceParam wikibase:language "en". 
+    bd:serviceParam wikibase:language "${options.language}". 
     ?country rdfs:label ?countryLabel . 
     ?capital rdfs:label ?capitalLabel . 
     ?language rdfs:label ?languageLabel 
@@ -39,7 +80,7 @@ GROUP BY ?iso_3166_1 ?country ?countryLabel ?flag
 ORDER BY ?countryLabel
 `;
   queryWikidata(sparql).then((result) => {
-    places = result;
+    countryList = result;
   });
 
   // New turn. Randomly select a place + get its location
@@ -48,47 +89,47 @@ ORDER BY ?countryLabel
       game.started = true;
     }
 
+    game.endTurn = false;
+
     // Get a random place (right answer)
-    let place = rndPlace(places);
-    let countryLocation = parse(place.location.value);
-    game.place = place;
+    game.correctAnswer = rndPlace(countryList);
+    let countryLocation = parse(game.correctAnswer.location.value);
 
     // Create an array of possible answers
-    game.places = [];
-    game.places.push(place);
-    while (game.places.length < 5) {
-      let place = rndPlace(places);
-      if (!game.places.includes(place)) {
-        game.places.push(place);
+    game.choices = [];
+    game.choices.push(game.correctAnswer);
+    while (game.choices.length < options.choices) {
+      let place = rndPlace(countryList);
+      if (!game.choices.includes(place)) {
+        game.choices.push(place);
       }
     }
-    game.places = shuffle(game.places);
+    game.choices = shuffle(game.choices);
 
     // Get capital location and add a marker
 
-    if(place.hasOwnProperty("capital")){
-
-
-    let query = `
-  select ?capitaLocation where {
-    wd:${place.capital.value.replace(
-      "http://www.wikidata.org/entity/",
-      ""
-    )} wdt:P625 ?capitaLocation.
-service wikibase:label { bd:serviceParam wikibase:language "en". }
-}
-`;
-    queryWikidata(query).then((result) => {
-      if (result[0].hasOwnProperty("capitaLocation")) {
-        let capitalLocation = parse(result[0].capitaLocation.value);
-        map.getSource("capital-location").setData(capitalLocation);
+    if (game.correctAnswer.hasOwnProperty("capital")) {
+      let query = `
+      select ?capitaLocation where {
+        wd:${game.correctAnswer.capital.value.replace(
+          "http://www.wikidata.org/entity/",
+          ""
+        )} wdt:P625 ?capitaLocation.
+      service wikibase:label { bd:serviceParam wikibase:language "${
+        options.language
+      }". }
       }
-    });
-
-  }
+      `;
+      queryWikidata(query).then((result) => {
+        if (result[0].hasOwnProperty("capitaLocation")) {
+          let capitalLocation = parse(result[0].capitaLocation.value);
+          map.getSource("capital-location").setData(capitalLocation);
+        }
+      });
+    }
 
     // Update boundary
-    let countryQid = place.country.value.replace(
+    let countryQid = game.correctAnswer.country.value.replace(
       "http://www.wikidata.org/entity/",
       ""
     );
@@ -115,7 +156,7 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
     map.setPaintProperty("admin-boundaries-line", "line-color", [
       "match",
       ["get", "iso_3166_1"],
-      place.iso_3166_1.value,
+      game.correctAnswer.iso_3166_1.value,
       "hsl(0, 0%, 100%)",
       "hsl(0, 0%, 60%)",
     ]);
@@ -138,7 +179,8 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
   }
 
   // Check if chosen place is correct
-  function checkPlace(code) {
+  function checkAnswer(code) {
+    game.endTurn = true;
 
     // Show country labels
     map.easeTo({
@@ -148,16 +190,15 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
     });
     map.setLayoutProperty("country-label", "visibility", "visible");
 
-
-    if (code == game.place.countryLabel.value) {
+    if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
       game.message = `You got it!`;
     } else {
-      game.message = `Nope, the answer was ${game.place.countryLabel.value}`;
+      game.message = `Nope, the answer was ${game.correctAnswer.countryLabel.value}.`;
     }
     game.turn += 1;
-    game.place = null;
-    game.places = null;
+    //game.correctAnswer = null;
+    game.choices = null;
   }
 
   // Retrieve commons thumbnail image from url
@@ -182,9 +223,13 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
     width: 100%;
   }
   footer {
-		position: absolute;
-		bottom: 10px;
-	}
+    position: absolute;
+    bottom: 10px;
+  }
+  #info {
+    padding: 20px;
+    background-color: #eaeaea;
+  }
 </style>
 
 <Panel>
@@ -197,13 +242,13 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
       {game.turn}
       {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
     </h3>
-    {#if !game.started && places}
+    {#if !game.started && countryList}
       <button on:click={nextTurn}>Let's get started!</button>
-    {:else if game.places}
-      {#each game.places as place}
+    {:else if game.choices}
+      {#each game.choices as place}
         <button
           class="block"
-          on:click={checkPlace(place.countryLabel.value)}>{place.countryLabel.value}
+          on:click={checkAnswer(place.countryLabel.value)}>{place.countryLabel.value}
           {#if place.hasOwnProperty('flag')}
             <img
               alt="Flag of {place.countryLabel.value}"
@@ -214,12 +259,21 @@ service wikibase:label { bd:serviceParam wikibase:language "en". }
     {:else if game.message}
       <h3>{game.message}</h3>
       <button on:click={nextTurn}>Show me another!</button>
+
+      <div id="info">
+        <h1>{game.correctAnswer.countryLabel.value}</h1>
+        <img
+          alt="Flag of {game.correctAnswer.countryLabel.value}"
+          src={commonsImage(game.correctAnswer.flag.value, 300)} />
+        <ul>
+          <li>Capital: {game.correctAnswer.capitalLabel.value}</li>
+        </ul>
+      </div>
     {/if}
     <footer>
       <a href="https://github.com/planemad/map-quiz/tree/main">Source Code</a>
     </footer>
   </main>
-
 </Panel>
 
 <Map style={mapstyle} bind:map />
