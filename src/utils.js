@@ -16,10 +16,17 @@ export async function queryWikidata(sparql){
 }
 
 
-// Select a random place from an array of places
-export function rndPlace(places) {
-  let num = Math.floor(Math.random() * places.length);
-  return places[num];
+// Select a random item from a list
+// Use a filter to narrow down the list if necessary
+export function pickCountry(list, filter) {
+
+  if(filter !== undefined){
+    list.filter(d=> d.subregion == filter.subregion)
+    console.log(list)
+  }
+
+  let num = Math.floor(Math.random() * list.length);
+  return list[num];
 }
 
 // Function to return an array in a random order

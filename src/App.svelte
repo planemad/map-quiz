@@ -7,14 +7,14 @@
 <script>
   import Map from "./Map.svelte";
   import Panel from "./Panel.svelte";
-  import { queryWikidata, rndPlace, shuffle } from "./utils.js";
+  import { queryWikidata, pickCountry, shuffle } from "./utils.js";
   import { parse } from "./wellknown.js";
-  import countries from "./data/mapbox-countries-v1.json";
+  import countriesLookup from "./data/mapbox-countries-v1.json";
 
   let map;
   let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
 
-  let countryList;
+  let countriesWikidata;
 
   let options = {
     locale: null,
@@ -49,7 +49,7 @@
 
   // Build a list of Wikidata qids to query from the Mapbox Countries list
   // Filter by selected worldview and undisputed countries
-  let countryQids = countries
+  let countryQids = countriesLookup
     .filter(
       (d) =>
         (d.worldview == "all" || d.worldview == options.mapWorldview) &&
@@ -80,7 +80,7 @@ GROUP BY ?iso_3166_1 ?country ?countryLabel ?flag
 ORDER BY ?countryLabel
 `;
   queryWikidata(sparql).then((result) => {
-    countryList = result;
+    countriesWikidata = result;
   });
 
   // New turn. Randomly select a place + get its location
@@ -92,21 +92,23 @@ ORDER BY ?countryLabel
     game.endTurn = false;
 
     // Get a random place (right answer)
-    game.correctAnswer = rndPlace(countryList);
+    game.correctAnswer = pickCountry(countriesWikidata);
     let countryLocation = parse(game.correctAnswer.location.value);
 
     // Create an array of possible answers
     game.choices = [];
     game.choices.push(game.correctAnswer);
     while (game.choices.length < options.choices) {
-      let place = rndPlace(countryList);
+      let place = pickCountry(countriesWikidata, game.correctAnswer);
       if (!game.choices.includes(place)) {
         game.choices.push(place);
       }
     }
     game.choices = shuffle(game.choices);
 
-    // Get capital location and add a marker
+    // Add a location marker to the map for the country
+    // Use the location of the capital if available
+    // Else use the country centroid
 
     if (game.correctAnswer.hasOwnProperty("capital")) {
       let query = `
@@ -122,10 +124,13 @@ ORDER BY ?countryLabel
       `;
       queryWikidata(query).then((result) => {
         if (result[0].hasOwnProperty("capitaLocation")) {
-          let capitalLocation = parse(result[0].capitaLocation.value);
-          map.getSource("capital-location").setData(capitalLocation);
+          let pointLocation = parse(result[0].capitaLocation.value);
+          map.getSource("capital-location").setData(pointLocation);
         }
       });
+    } else {
+      let pointLocation = parse(game.correctAnswer.location.value);
+      map.getSource("capital-location").setData(pointLocation);
     }
 
     // Update boundary
@@ -192,12 +197,11 @@ ORDER BY ?countryLabel
 
     if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
-      game.message = `You got it!`;
+      game.message = `🙌 You got it!`;
     } else {
-      game.message = `Nope, the answer was ${game.correctAnswer.countryLabel.value}.`;
+      game.message = `🙈 Nope!`;
     }
     game.turn += 1;
-    //game.correctAnswer = null;
     game.choices = null;
   }
 
@@ -242,7 +246,7 @@ ORDER BY ?countryLabel
       {game.turn}
       {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
     </h3>
-    {#if !game.started && countryList}
+    {#if !game.started && countriesWikidata}
       <button on:click={nextTurn}>Let's get started!</button>
     {:else if game.choices}
       {#each game.choices as place}
@@ -262,11 +266,18 @@ ORDER BY ?countryLabel
 
       <div id="info">
         <h1>{game.correctAnswer.countryLabel.value}</h1>
-        <img
-          alt="Flag of {game.correctAnswer.countryLabel.value}"
-          src={commonsImage(game.correctAnswer.flag.value, 300)} />
+        {#if game.correctAnswer.hasOwnProperty('flag')}
+          <img
+            alt="Flag of {game.correctAnswer.countryLabel.value}"
+            src={commonsImage(game.correctAnswer.flag.value, 300)} />
+        {/if}
         <ul>
-          <li>Capital: {game.correctAnswer.capitalLabel.value}</li>
+          <li>
+            Capital:
+            {#if game.correctAnswer.hasOwnProperty('capitalLabel')}
+              {game.correctAnswer.capitalLabel.value}
+            {:else}None{/if}
+          </li>
         </ul>
       </div>
     {/if}
@@ -276,4 +287,4 @@ ORDER BY ?countryLabel
   </main>
 </Panel>
 
-<Map style={mapstyle} bind:map />
+<Map style={mapstyle} worldview={options.mapWorldview} bind:map />
