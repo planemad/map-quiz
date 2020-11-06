@@ -16,17 +16,20 @@ export async function queryWikidata(sparql){
 }
 
 
-// Select a random item from a list
+// Select a random item from object
 // Use a filter to narrow down the list if necessary
-export function pickCountry(list, filter) {
+export function pickCountry(data, filter) {
 
   if(filter !== undefined){
-    list.filter(d=> d.subregion == filter.subregion)
-    console.log(list)
+    Object.keys(data).forEach(key => {
+      if(!filter(data[key])){
+        delete data[key];
+      }
+    });
   }
 
-  let num = Math.floor(Math.random() * list.length);
-  return list[num];
+  var keys = Object.keys(data);
+  return data[keys[ keys.length * Math.random() << 0]];
 }
 
 // Function to return an array in a random order

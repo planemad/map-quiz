@@ -24,8 +24,8 @@
   };
 
   let game = {
-    started: false,
-    turn: 0,
+    dataLoaded: false,
+    turn: -1,
     score: 0,
     endTurn: false,
     place: null,
@@ -49,13 +49,15 @@
 
   // Build a list of Wikidata qids to query from the Mapbox Countries list
   // Filter by selected worldview and undisputed countries
-  let countryQids = countriesLookup
+  let countriesData = countriesLookup
     .filter(
       (d) =>
         (d.worldview == "all" || d.worldview == options.mapWorldview) &&
         d.disputed == "FALSE"
     )
-    .map((d) => d.wikidata_id);
+    .reduce((a, b) => ((a[b.wikidata_id] = b), a), {});
+
+  let countryQids = Object.keys(countriesData);
 
   // Get list of countries from Wikidata
   let sparql = `
@@ -80,31 +82,45 @@ GROUP BY ?iso_3166_1 ?country ?countryLabel ?flag
 ORDER BY ?countryLabel
 `;
   queryWikidata(sparql).then((result) => {
-    countriesWikidata = result;
+    // Join the Wikidata results to the country data object using the qid as lookup key
+    result.forEach((d) => {
+      let qid = d.country.value.replace("http://www.wikidata.org/entity/", "");
+      Object.assign(countriesData[qid], d);
+    });
+
+    if (!game.dataLoaded) {
+      game.dataLoaded = true;
+    }
   });
 
   // New turn. Randomly select a place + get its location
   function nextTurn() {
-    if (!game.started) {
-      game.started = true;
+    if (game.turn == -1) {
+      game.turn++;
     }
 
     game.endTurn = false;
 
     // Get a random place (right answer)
-    game.correctAnswer = pickCountry(countriesWikidata);
-    let countryLocation = parse(game.correctAnswer.location.value);
+    console.log(countriesData);
+    game.correctAnswer = pickCountry(countriesData);
 
     // Create an array of possible answers
     game.choices = [];
     game.choices.push(game.correctAnswer);
     while (game.choices.length < options.choices) {
-      let place = pickCountry(countriesWikidata, game.correctAnswer);
+      let place = pickCountry(
+        countriesData,
+        (d) => d.subregion == game.correctAnswer.subregion
+      );
+
       if (!game.choices.includes(place)) {
         game.choices.push(place);
       }
     }
     game.choices = shuffle(game.choices);
+
+    console.log(game.choices, game.turn);
 
     // Add a location marker to the map for the country
     // Use the location of the capital if available
@@ -168,7 +184,7 @@ ORDER BY ?countryLabel
 
     // Pan to place
     map.easeTo({
-      center: countryLocation.coordinates,
+      center: parse(game.correctAnswer.location.value).coordinates,
       zoom: 3,
       duration: 1000,
       bearing: Math.random() * 360,
@@ -239,16 +255,16 @@ ORDER BY ?countryLabel
 <Panel>
   <main>
     <h1>Can you guess the country?</h1>
-    <h3>
-      Score
-      {game.score}
-      /
-      {game.turn}
-      {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
-    </h3>
-    {#if !game.started && countriesWikidata}
+    {#if game.dataLoaded && game.turn == -1}
       <button on:click={nextTurn}>Let's get started!</button>
     {:else if game.choices}
+      <h3>
+        Score
+        {game.score}
+        /
+        {game.turn}
+        {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
+      </h3>
       {#each game.choices as place}
         <button
           class="block"
