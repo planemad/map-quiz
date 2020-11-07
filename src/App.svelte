@@ -19,7 +19,7 @@
     language: "ta",
     fallbackLanguage: "en",
     mapWorldview: "US", // Set worldview to use for disputed areas
-    choices: 1,
+    choices: 4,
   };
 
   let game = {
