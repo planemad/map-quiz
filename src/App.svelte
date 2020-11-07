@@ -14,13 +14,12 @@
   let map;
   let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
 
-  let countriesWikidata;
-
   let options = {
     locale: null,
     language: "ta",
+    fallbackLanguage: "en",
     mapWorldview: "US", // Set worldview to use for disputed areas
-    choices: 4,
+    choices: 1,
   };
 
   let game = {
@@ -33,17 +32,21 @@
     message: null,
   };
 
+  let timeout;
+
   // Customize to user language and location
+  // Use en-US as fallback
 
   options.locale ? null : detectLocale();
 
   function detectLocale() {
     let locale = navigator.language;
+    locale = locale || "en-US";
+
     options.language = locale.split("-")[0];
-    if (["IN", "JP", "CN"].indexOf(locale.split("-")[1]) >= 0) {
+
+    if (["IN", "JP", "CN", "US"].indexOf(locale.split("-")[1]) >= 0) {
       options.mapWorldview = locale.split("-")[1];
-    } else {
-      options.mapWorldview = "US";
     }
   }
 
@@ -54,6 +57,7 @@
       (d) =>
         (d.worldview == "all" || d.worldview == options.mapWorldview) &&
         d.disputed == "FALSE"
+      // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
     )
     .reduce((a, b) => ((a[b.wikidata_id] = b), a), {});
 
@@ -62,23 +66,24 @@
   // Get list of countries from Wikidata
   let sparql = `
   # List of all countries based on ISO 3166-2 country code with their capitals 
-  SELECT DISTINCT ?iso_3166_1 (SAMPLE(?location) as ?location) ?country ?countryLabel ?flag (SAMPLE(?capital) as ?capital) (SAMPLE(?capitalLabel) as ?capitalLabel) (GROUP_CONCAT(DISTINCT ?languageLabel; SEPARATOR=", ") AS ?languages) WHERE {
+  SELECT DISTINCT  (SAMPLE(?location) as ?location) ?country ?countryLabel ?flag (SAMPLE(?capital) as ?capital) (SAMPLE(?capitalLabel) as ?capitalLabel) (GROUP_CONCAT(DISTINCT ?languageLabel; SEPARATOR=", ") AS ?languages) WHERE {
   VALUES ?country { ${countryQids.join(" ").replace(/Q/g, "wd:Q")}}
-    ?country wdt:P297 ?iso_3166_1. 
-  ?country wdt:P625 ?location.
+  OPTIONAL { ?country wdt:P625 ?location }.
   OPTIONAL { ?country wdt:P37 ?language }.
   OPTIONAL { ?country wdt:P41 ?flag }.
   OPTIONAL { ?country wdt:P36 ?capital }.
     # Retrieve labels to enable group_concat 
     # https://stackoverflow.com/questions/48855767/group-concat-not-working
     SERVICE wikibase:label { 
-    bd:serviceParam wikibase:language "${options.language}". 
+    bd:serviceParam wikibase:language "${options.language},${
+    options.fallbackLanguage
+  }". 
     ?country rdfs:label ?countryLabel . 
     ?capital rdfs:label ?capitalLabel . 
     ?language rdfs:label ?languageLabel 
   }
   }
-GROUP BY ?iso_3166_1 ?country ?countryLabel ?flag
+GROUP BY ?country ?countryLabel ?flag
 ORDER BY ?countryLabel
 `;
   queryWikidata(sparql).then((result) => {
@@ -86,6 +91,9 @@ ORDER BY ?countryLabel
     result.forEach((d) => {
       let qid = d.country.value.replace("http://www.wikidata.org/entity/", "");
       Object.assign(countriesData[qid], d);
+      countriesData[qid].wikidata = d;
+      // Augment JSON data from WIkidata results
+      countriesData[qid].name_lang = d.countryLabel.value;
     });
 
     if (!game.dataLoaded) {
@@ -102,10 +110,9 @@ ORDER BY ?countryLabel
     game.endTurn = false;
 
     // Get a random place (right answer)
-    console.log(countriesData);
     game.correctAnswer = pickCountry(countriesData);
 
-    // Create an array of possible answers
+    // Create an array of possible choices in the same subregion and shuffle the order
     game.choices = [];
     game.choices.push(game.correctAnswer);
     while (game.choices.length < options.choices) {
@@ -120,25 +127,45 @@ ORDER BY ?countryLabel
     }
     game.choices = shuffle(game.choices);
 
-    console.log(game.choices, game.turn);
-
     // Add a location marker to the map for the country
     // Use the location of the capital if available
     // Else use the country centroid
 
     if (game.correctAnswer.hasOwnProperty("capital")) {
       let query = `
-      select ?capitaLocation where {
-        wd:${game.correctAnswer.capital.value.replace(
-          "http://www.wikidata.org/entity/",
-          ""
-        )} wdt:P625 ?capitaLocation.
+      select (SAMPLE(?capitaLocation) as ?capitaLocation) ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website) where {
+
+        OPTIONAL {  wd:${game.correctAnswer.wikidata_id}  wdt:P85 ?anthem }.
+        OPTIONAL { ?anthem wdt:P51 ?anthemAudio }.
+        
+        OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P94 ?coatOfArms }.
+        OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P856 ?website }.
+        OPTIONAL { wd:${
+          game.correctAnswer.wikidata_id
+        } wdt:P37 ?officialLanguage }.
+    OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P2936 ?otherLanguage }.
+
+        OPTIONAL { 
+          wd:${game.correctAnswer.capital.value.replace(
+            "http://www.wikidata.org/entity/",
+            ""
+          )} wdt:P625 ?capitaLocation }.
+        
       service wikibase:label { bd:serviceParam wikibase:language "${
         options.language
-      }". }
+      },${options.fallbackLanguage}". }
       }
+      GROUP BY ?anthemAudio ?coatOfArms
+
       `;
       queryWikidata(query).then((result) => {
+        game.correctAnswer.wikidata = Object.assign(
+          result[0],
+          game.correctAnswer.wikidata
+        );
+        // DEBUG
+        // console.log(game.correctAnswer);
+
         if (result[0].hasOwnProperty("capitaLocation")) {
           let pointLocation = parse(result[0].capitaLocation.value);
           map.getSource("capital-location").setData(pointLocation);
@@ -177,21 +204,23 @@ ORDER BY ?countryLabel
     map.setPaintProperty("admin-boundaries-line", "line-color", [
       "match",
       ["get", "iso_3166_1"],
-      game.correctAnswer.iso_3166_1.value,
+      game.correctAnswer.iso_3166_1,
       "hsl(0, 0%, 100%)",
       "hsl(0, 0%, 60%)",
     ]);
 
+    clearTimeout(timeout);
+
     // Pan to place
     map.easeTo({
-      center: parse(game.correctAnswer.location.value).coordinates,
+      center: JSON.parse(game.correctAnswer.centroid),
       zoom: 3,
       duration: 1000,
       bearing: Math.random() * 360,
     });
 
     // Zoom in after 4 seconds
-    setTimeout(function () {
+    timeout = setTimeout(function () {
       map.easeTo({
         zoom: 5,
         duration: 1000,
@@ -250,6 +279,10 @@ ORDER BY ?countryLabel
     padding: 20px;
     background-color: #eaeaea;
   }
+  #info img {
+    width: 50%;
+    max-width: 150;
+  }
 </style>
 
 <Panel>
@@ -265,6 +298,7 @@ ORDER BY ?countryLabel
         {game.turn}
         {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
       </h3>
+
       {#each game.choices as place}
         <button
           class="block"
@@ -281,20 +315,44 @@ ORDER BY ?countryLabel
       <button on:click={nextTurn}>Show me another!</button>
 
       <div id="info">
-        <h1>{game.correctAnswer.countryLabel.value}</h1>
-        {#if game.correctAnswer.hasOwnProperty('flag')}
+        <h1>
+          {game.correctAnswer.name}
+          {#if game.correctAnswer.name_lang != game.correctAnswer.name}
+            <br /><small>{game.correctAnswer.name_lang}</small>
+          {/if}
+        </h1>
+        {#if game.correctAnswer.wikidata.hasOwnProperty('flag')}
           <img
-            alt="Flag of {game.correctAnswer.countryLabel.value}"
-            src={commonsImage(game.correctAnswer.flag.value, 300)} />
+            alt="Flag of {game.correctAnswer.wikidata.countryLabel.value}"
+            src={commonsImage(game.correctAnswer.wikidata.flag.value, 150)} />
+        {/if}
+        {#if game.correctAnswer.wikidata.hasOwnProperty('coatOfArms')}
+          <img
+            alt="Coat of arms of {game.correctAnswer.wikidata.countryLabel.value}"
+            src={commonsImage(game.correctAnswer.wikidata.coatOfArms.value, 150)} />
         {/if}
         <ul>
           <li>
             Capital:
-            {#if game.correctAnswer.hasOwnProperty('capitalLabel')}
-              {game.correctAnswer.capitalLabel.value}
+            {#if game.correctAnswer.wikidata.hasOwnProperty('capitalLabel')}
+              {game.correctAnswer.wikidata.capitalLabel.value}
             {:else}None{/if}
           </li>
+          <li>
+            Languages :
+            {#if game.correctAnswer.wikidata.hasOwnProperty('languages')}
+              {game.correctAnswer.wikidata.languages.value}
+            {:else}Unknown{/if}
+          </li>
+          <li>
+            Official homepage :
+            {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
+            <a href="{game.correctAnswer.wikidata.website.value}">{game.correctAnswer.wikidata.website.value}</a>
+            {:else}Unknown{/if}
+          </li>
         </ul>
+        Source:
+        <a href="{game.correctAnswer.wikidata.country.value}">Wikidata</a>
       </div>
     {/if}
     <footer>

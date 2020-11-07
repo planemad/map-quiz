@@ -20,16 +20,19 @@ export async function queryWikidata(sparql){
 // Use a filter to narrow down the list if necessary
 export function pickCountry(data, filter) {
 
+
+  let obj = JSON.parse(JSON.stringify(data));
+
   if(filter !== undefined){
-    Object.keys(data).forEach(key => {
-      if(!filter(data[key])){
-        delete data[key];
+    Object.keys(obj).forEach(key => {
+      if(!filter(obj[key])){
+        delete obj[key];
       }
     });
   }
 
-  var keys = Object.keys(data);
-  return data[keys[ keys.length * Math.random() << 0]];
+  var keys = Object.keys(obj);
+  return obj[keys[ keys.length * Math.random() << 0]];
 }
 
 // Function to return an array in a random order
