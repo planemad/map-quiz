@@ -66,24 +66,22 @@
   // Get list of countries from Wikidata
   let sparql = `
   # List of all countries based on ISO 3166-2 country code with their capitals 
-  SELECT DISTINCT  (SAMPLE(?location) as ?location) ?country ?countryLabel ?flag (SAMPLE(?capital) as ?capital) (SAMPLE(?capitalLabel) as ?capitalLabel) (GROUP_CONCAT(DISTINCT ?languageLabel; SEPARATOR=", ") AS ?languages) WHERE {
+  SELECT DISTINCT  (SAMPLE(?location) as ?location) ?country ?countryLabel (SAMPLE(?capital) as ?capital) (SAMPLE(?capitalLabel) as ?capitalLabel) (SAMPLE(?flag) as ?flag) WHERE {
   VALUES ?country { ${countryQids.join(" ").replace(/Q/g, "wd:Q")}}
   OPTIONAL { ?country wdt:P625 ?location }.
-  OPTIONAL { ?country wdt:P37 ?language }.
   OPTIONAL { ?country wdt:P41 ?flag }.
   OPTIONAL { ?country wdt:P36 ?capital }.
     # Retrieve labels to enable group_concat 
     # https://stackoverflow.com/questions/48855767/group-concat-not-working
-    SERVICE wikibase:label { 
+    SERVICE wikibase:label {
     bd:serviceParam wikibase:language "${options.language},${
     options.fallbackLanguage
   }". 
     ?country rdfs:label ?countryLabel . 
     ?capital rdfs:label ?capitalLabel . 
-    ?language rdfs:label ?languageLabel 
   }
   }
-GROUP BY ?country ?countryLabel ?flag
+GROUP BY ?country ?countryLabel
 ORDER BY ?countryLabel
 `;
   queryWikidata(sparql).then((result) => {
@@ -122,6 +120,7 @@ ORDER BY ?countryLabel
       );
 
       if (!game.choices.includes(place)) {
+        console.log(game.choices, place);
         game.choices.push(place);
       }
     }
@@ -133,17 +132,24 @@ ORDER BY ?countryLabel
 
     if (game.correctAnswer.hasOwnProperty("capital")) {
       let query = `
-      select (SAMPLE(?capitaLocation) as ?capitaLocation) ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website) where {
+      select (SAMPLE(?capitaLocation) as ?capitaLocation) ?anthemLabel ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website)  (SAMPLE(?namedAfter) as ?namedAfter) (SAMPLE(?pageBanner) as ?pageBanner) (SAMPLE(?pronounciationAudio) as ?pronounciationAudio) where {
 
         OPTIONAL {  wd:${game.correctAnswer.wikidata_id}  wdt:P85 ?anthem }.
         OPTIONAL { ?anthem wdt:P51 ?anthemAudio }.
         
         OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P94 ?coatOfArms }.
         OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P856 ?website }.
+        OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P138 ?namedAfter}.
+        OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P948 ?pageBanner}.
+        OPTIONAL { wd:${
+          game.correctAnswer.wikidata_id
+        } wdt:P443 ?pronounciationAudio}.
         OPTIONAL { wd:${
           game.correctAnswer.wikidata_id
         } wdt:P37 ?officialLanguage }.
-    OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P2936 ?otherLanguage }.
+        OPTIONAL { wd:${
+          game.correctAnswer.wikidata_id
+        } wdt:P2936 ?otherLanguage }.
 
         OPTIONAL { 
           wd:${game.correctAnswer.capital.value.replace(
@@ -153,18 +159,23 @@ ORDER BY ?countryLabel
         
       service wikibase:label { bd:serviceParam wikibase:language "${
         options.language
-      },${options.fallbackLanguage}". }
+      },${options.fallbackLanguage}". 
+      ?officialLanguage rdfs:label ?officialLanguageLabel .
+   ?otherLanguage rdfs:label ?otherLanguageLabel .
+   ?anthem rdfs:label ?anthemLabel .
+  }
       }
-      GROUP BY ?anthemAudio ?coatOfArms
+      GROUP BY ?anthemLabel ?anthemAudio ?coatOfArms
 
       `;
+
       queryWikidata(query).then((result) => {
         game.correctAnswer.wikidata = Object.assign(
           result[0],
           game.correctAnswer.wikidata
         );
-        // DEBUG
-        // console.log(game.correctAnswer);
+        // DEBUG: Inspect answer data
+        console.log(query, countriesData, game.correctAnswer);
 
         if (result[0].hasOwnProperty("capitaLocation")) {
           let pointLocation = parse(result[0].capitaLocation.value);
@@ -257,40 +268,33 @@ ORDER BY ?countryLabel
 </script>
 
 <style>
-  :global(body) {
-    margin: 0;
-    padding: 0;
-  }
-  main {
-    padding: 20px;
-  }
-  h1 {
-    margin-top: 1px;
-  }
-  .block {
-    display: block;
-    width: 100%;
-  }
-  footer {
-    position: absolute;
-    bottom: 10px;
-  }
-  #info {
-    padding: 20px;
-    background-color: #eaeaea;
-  }
-  #info img {
-    width: 50%;
-    max-width: 150;
-  }
 </style>
 
 <Panel>
-  <main>
-    <h1>Can you guess the country?</h1>
+  <main class="uk-position-absolute uk-padding">
     {#if game.dataLoaded && game.turn == -1}
+      <h1>Can you guess the country?</h1>
       <button on:click={nextTurn}>Let's get started!</button>
     {:else if game.choices}
+      <div class="uk-child-width-expand uk-grid-collapse uk-grid-match" uk-grid>
+        {#each game.choices as place}
+          <div
+            class="uk-width-expand@l"
+            on:click={checkAnswer(place.countryLabel.value)}>
+            <div class="uk-card uk-card-default uk-card-body">
+              {place.countryLabel.value}
+
+              {#if place.hasOwnProperty('flag')}
+                <img
+                  class="uk-float-right"
+                  alt="Flag of {place.countryLabel.value}"
+                  src={commonsImage(place.flag.value, 50)} />
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+
       <h3>
         Score
         {game.score}
@@ -298,64 +302,106 @@ ORDER BY ?countryLabel
         {game.turn}
         {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
       </h3>
-
-      {#each game.choices as place}
-        <button
-          class="block"
-          on:click={checkAnswer(place.countryLabel.value)}>{place.countryLabel.value}
-          {#if place.hasOwnProperty('flag')}
-            <img
-              alt="Flag of {place.countryLabel.value}"
-              src={commonsImage(place.flag.value, 30)} />
-          {/if}
-        </button>
-      {/each}
     {:else if game.message}
-      <h3>{game.message}</h3>
-      <button on:click={nextTurn}>Show me another!</button>
+      <div class="uk-width-expand@l" on:click={nextTurn}>
+        <div class="uk-card uk-card-default uk-card-body">
+          {game.message}
+          <br />
 
-      <div id="info">
-        <h1>
-          {game.correctAnswer.name}
-          {#if game.correctAnswer.name_lang != game.correctAnswer.name}
-            <br /><small>{game.correctAnswer.name_lang}</small>
+          Score
+          {game.score}
+          /
+          {game.turn}
+          {#if game.turn > 0}
+            ({Math.round((game.score / game.turn) * 100)}%)
           {/if}
-        </h1>
-        {#if game.correctAnswer.wikidata.hasOwnProperty('flag')}
-          <img
-            alt="Flag of {game.correctAnswer.wikidata.countryLabel.value}"
-            src={commonsImage(game.correctAnswer.wikidata.flag.value, 150)} />
+
+          <br />
+
+          Guess another country.
+        </div>
+      </div>
+
+      <div class="uk-card uk-card-default uk-margin-top">
+        {#if game.correctAnswer.wikidata.hasOwnProperty('pageBanner')}
+          <div class="uk-card-media-top">
+            <img
+              alt="Header image of {game.correctAnswer.wikidata.countryLabel.value}"
+              src="{game.correctAnswer.wikidata.pageBanner.value}?width=400px" />
+          </div>
         {/if}
-        {#if game.correctAnswer.wikidata.hasOwnProperty('coatOfArms')}
-          <img
-            alt="Coat of arms of {game.correctAnswer.wikidata.countryLabel.value}"
-            src={commonsImage(game.correctAnswer.wikidata.coatOfArms.value, 150)} />
-        {/if}
-        <ul>
-          <li>
-            Capital:
-            {#if game.correctAnswer.wikidata.hasOwnProperty('capitalLabel')}
-              {game.correctAnswer.wikidata.capitalLabel.value}
-            {:else}None{/if}
-          </li>
-          <li>
-            Languages :
-            {#if game.correctAnswer.wikidata.hasOwnProperty('languages')}
-              {game.correctAnswer.wikidata.languages.value}
-            {:else}Unknown{/if}
-          </li>
-          <li>
-            Official homepage :
-            {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
-            <a href="{game.correctAnswer.wikidata.website.value}">{game.correctAnswer.wikidata.website.value}</a>
-            {:else}Unknown{/if}
-          </li>
-        </ul>
-        Source:
-        <a href="{game.correctAnswer.wikidata.country.value}">Wikidata</a>
+
+        <div class="uk-card-header">
+          <div class="uk-grid-small uk-flex-middle" uk-grid>
+            <div class="uk-width-auto">
+              {#if game.correctAnswer.wikidata.hasOwnProperty('flag')}
+                <a href={game.correctAnswer.wikidata.flag.value}>
+                  <img
+                    alt="Flag of {game.correctAnswer.wikidata.countryLabel.value}"
+                    src="{game.correctAnswer.wikidata.flag.value}?width=100px" />
+                </a>
+              {/if}
+            </div>
+            <div class="uk-width-expand">
+              <h3 class="uk-card-title uk-margin-remove-bottom">
+                {game.correctAnswer.name_lang}
+              </h3>
+
+              {#if game.correctAnswer.name_lang != game.correctAnswer.name}
+                <p class="uk-text-meta uk-margin-remove-top">
+                  {game.correctAnswer.name}
+                </p>
+                {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
+                  <a
+                    href={game.correctAnswer.wikidata.website.value}>{game.correctAnswer.wikidata.website.value}</a>
+                {/if}
+              {/if}
+            </div>
+          </div>
+        </div>
+
+        <div class="uk-card-body">
+          <p>
+            {#if game.correctAnswer.wikidata.hasOwnProperty('coatOfArms')}
+              <a href={game.correctAnswer.wikidata.coatOfArms.value}>
+                <img
+                  alt="Coat of arms of {game.correctAnswer.wikidata.countryLabel.value}"
+                  src="{game.correctAnswer.wikidata.coatOfArms.value}?width=150px" />
+              </a>
+              Coat of arms
+            {/if}
+          </p>
+
+          <ul>
+            <li>
+              Capital:
+              {#if game.correctAnswer.wikidata.hasOwnProperty('capitalLabel')}
+                {game.correctAnswer.wikidata.capitalLabel.value}
+              {:else}None{/if}
+            </li>
+            <li>
+              Official languages:
+              {#if game.correctAnswer.wikidata.hasOwnProperty('officialLanguageLabels')}
+                {game.correctAnswer.wikidata.officialLanguageLabels.value}
+              {:else}Unknown{/if}
+            </li>
+            <li>
+              Other languages:
+              {#if game.correctAnswer.wikidata.hasOwnProperty('otherLanguageLabels')}
+                {game.correctAnswer.wikidata.otherLanguageLabels.value}
+              {:else}Unknown{/if}
+            </li>
+          </ul>
+        </div>
+        <div class="uk-card-footer">
+          Data source:
+          <a
+            href={game.correctAnswer.wikidata.country.value}
+            class="uk-button uk-button-text">Wikidata</a>
+        </div>
       </div>
     {/if}
-    <footer>
+    <footer class="uk-margin-top">
       <a href="https://github.com/planemad/map-quiz/tree/main">Source Code</a>
     </footer>
   </main>
