@@ -15,11 +15,12 @@
   let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
 
   let options = {
-    locale: null,
+    locale: navigator.language,
     language: "ta",
     fallbackLanguage: "en",
     mapWorldview: "US", // Set worldview to use for disputed areas
     choices: 4,
+    viewportWidth: window.innerWidth,
   };
 
   let game = {
@@ -34,30 +35,39 @@
       { message: "🙈" },
     ],
     dataLoaded: false,
-    turn: -1,
+    showIntro: true,
+    turn: 0,
     score: 0,
     endTurn: false,
     place: null,
     choices: null,
-    message: null,
-    answerIsCorrect: true,
+    answerIsCorrect: null,
   };
 
   let timeout;
 
   // Customize to user language and location
-  // Use en-US as fallback
+  // Use English as fallback
 
-  options.locale ? null : detectLocale();
+  if (options.locale.split("-").length == 1) detectLocation();
 
-  function detectLocale() {
-    let locale = navigator.language;
-    locale = locale || "en-US";
+  function detectLocation() {
+    // Detect user country
+    fetch("https://freegeoip.app/json/")
+      .then((res) => res.json())
+      .then((d) => {
+        options.locale += "-" + d.country_code;
+        customizeLocale();
+      })
+      .catch(() => null);
+  }
 
-    options.language = locale.split("-")[0];
+  customizeLocale();
 
-    if (["IN", "JP", "CN", "US"].indexOf(locale.split("-")[1]) >= 0) {
-      options.mapWorldview = locale.split("-")[1];
+  function customizeLocale() {
+    options.language = options.locale.split("-")[0];
+    if (["IN", "JP", "CN", "US"].indexOf(options.locale.split("-")[1]) >= 0) {
+      options.mapWorldview = options.locale.split("-")[1];
     }
   }
 
@@ -107,16 +117,14 @@ ORDER BY ?countryLabel
 
     if (!game.dataLoaded) {
       game.dataLoaded = true;
+      map.on("load", function () {
+        nextTurn();
+      });
     }
   });
 
   // New turn. Randomly select a place + get its location
   function nextTurn() {
-    if (game.turn == -1) {
-      styleMap("GB");
-      game.turn++;
-    }
-
     game.endTurn = false;
 
     // Get a random place (right answer)
@@ -144,9 +152,12 @@ ORDER BY ?countryLabel
     // Use the location of the capital if available
     // Else use the country centroid
 
-    if (game.correctAnswer.hasOwnProperty("capital")) {
-      let query = `
-      select (SAMPLE(?capitaLocation) as ?capitaLocation) ?anthemLabel ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website)  (SAMPLE(?namedAfter) as ?namedAfter) (SAMPLE(?pageBanner) as ?pageBanner) (SAMPLE(?pronounciationAudio) as ?pronounciationAudio) where {
+    let hasCapital = game.correctAnswer.hasOwnProperty("capital");
+
+    let query = `
+      select ${
+        hasCapital ? "(SAMPLE(?capitalLocation) as ?capitalLocation)" : null
+      } ?anthemLabel ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website)  (SAMPLE(?namedAfter) as ?namedAfter) (SAMPLE(?pageBanner) as ?pageBanner) (SAMPLE(?pronounciationAudio) as ?pronounciationAudio) where {
 
         OPTIONAL {  wd:${game.correctAnswer.wikidata_id}  wdt:P85 ?anthem }.
         OPTIONAL { ?anthem wdt:P51 ?anthemAudio }.
@@ -165,11 +176,15 @@ ORDER BY ?countryLabel
           game.correctAnswer.wikidata_id
         } wdt:P2936 ?otherLanguage }.
 
-        OPTIONAL { 
+        ${
+          hasCapital
+            ? `OPTIONAL { 
           wd:${game.correctAnswer.capital.value.replace(
             "http://www.wikidata.org/entity/",
             ""
-          )} wdt:P625 ?capitaLocation }.
+          )} wdt:P625 ?capitalLocation }.`
+            : null
+        }
         
       service wikibase:label { bd:serviceParam wikibase:language "${
         options.language
@@ -183,57 +198,45 @@ ORDER BY ?countryLabel
 
       `;
 
-      queryWikidata(query).then((result) => {
-        game.correctAnswer.wikidata = Object.assign(
-          result[0],
-          game.correctAnswer.wikidata
-        );
-        // DEBUG: Inspect answer data
-        console.log(query, countriesData, game.correctAnswer);
+    queryWikidata(query).then((result) => {
+      game.correctAnswer.wikidata = Object.assign(
+        result[0],
+        game.correctAnswer.wikidata
+      );
+      // DEBUG: Inspect answer data
+      // console.log(query, countriesData, game.correctAnswer);
 
-        if (result[0].hasOwnProperty("capitaLocation")) {
-          let pointLocation = parse(result[0].capitaLocation.value);
-          map.getSource("capital-location").setData(pointLocation);
-        }
-      });
-    } else {
-      let pointLocation = parse(game.correctAnswer.location.value);
+      let pointLocation;
+
+      if (result[0].hasOwnProperty("capitalLocation")) {
+        pointLocation = parse(
+          game.correctAnswer.wikidata.capitalLocation.value
+        );
+      } else {
+        pointLocation = game.correctAnswer.centroid;
+      }
       map.getSource("capital-location").setData(pointLocation);
-    }
+    });
 
     // Update boundary
-    let countryQid = game.correctAnswer.country.value.replace(
-      "http://www.wikidata.org/entity/",
-      ""
-    );
 
     styleMap(game.correctAnswer.iso_3166_1);
-
-    clearTimeout(timeout);
 
     // Pan to place
 
     map.fitBounds(JSON.parse(game.correctAnswer.bounds), {
-      padding: 200,
+      padding: document.getElementById("map").offsetWidth * 0.1,
       duration: 1000,
       bearing: Math.random() * 360,
     });
 
-    // console.log(JSON.parse(game.correctAnswer.bounds))
-
-    // let bounds = ;
-    // bounds = [[bounds[0],bounds[1]],[bounds[2],bounds[3]]]
-    // console.log(bounds)
-
     // Zoom in after 4 seconds
-    // timeout = setTimeout(function () {
-    //   map.easeTo({
-    //     center: JSON.parse(game.correctAnswer.centroid),
-    //     zoom: 3,
-    //     duration: 1000,
-    //     bearing: Math.random() * 360,
-    //   });
-    // }, 1000);
+    timeout = setTimeout(function () {
+      map.easeTo({
+        center: JSON.parse(game.correctAnswer.centroid),
+        zoom: map.getZoom() < 4 ? map.getZoom() : 4,
+      });
+    }, 1000);
   }
 
   // Style the map to highlight a country
@@ -253,7 +256,7 @@ ORDER BY ?countryLabel
       "match",
       ["get", "iso_3166_1"],
       iso_3166_1,
-      "hsl(33, 0%, 38%)",
+      "orange",
       "hsla(0, 0%, 100%, 0)",
     ]);
 
@@ -280,12 +283,11 @@ ORDER BY ?countryLabel
 
     if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
-      game.message = `🙌 You got it!`;
       game.answerIsCorrect = true;
     } else {
-      game.message = `🙈 Nope!`;
       game.answerIsCorrect = false;
     }
+
     game.turn += 1;
     game.choices = null;
   }
@@ -294,23 +296,38 @@ ORDER BY ?countryLabel
   function commonsImage(filePath, width) {
     return `${filePath}?width=${width}px`;
   }
+
+  function removeIntro() {
+    game.showIntro = false;
+  }
+
+  function isMapLoaded() {
+    return map.loaded;
+  }
 </script>
 
 <style>
 </style>
 
 <Panel>
-  <main class="uk-position-absolute uk-padding-small">
-    {#if game.dataLoaded && game.turn == -1}
-      <div>
-        <h1>Can you guess the country?</h1>
-        <button
-          on:click={nextTurn}
-          class="uk-button uk-button-primary uk-button-large uk-width-1-1"
-          style="background-color:#1ba3e3">
-          Let's get started!<br />
-        </button>
-      </div>
+  <main id="panel" class="uk-position-absolute uk-padding-small">
+    {#if game.showIntro}
+      {#if !game.dataLoaded || !isMapLoaded()}
+        <h4>
+          <div uk-spinner />
+          Loading list of countries.
+        </h4>
+      {:else}
+        <div>
+          <h1>Can you guess the country?</h1>
+          <button
+            on:click={removeIntro}
+            class="uk-button uk-button-primary uk-button-large uk-width-1-1"
+            style="background-color:#1ba3e3">
+            Let's get started!<br />
+          </button>
+        </div>
+      {/if}
     {:else if game.choices}
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
@@ -319,7 +336,7 @@ ORDER BY ?countryLabel
             on:click={checkAnswer(choice.countryLabel.value)}>
             <div
               data-qid={choice.wikidata_id}
-              class="uk-card uk-card-default uk-card-body">
+              class="uk-card uk-card-default uk-card-body uk-card-hover">
               {choice.countryLabel.value}
 
               {#if choice.hasOwnProperty('flag')}
@@ -332,7 +349,7 @@ ORDER BY ?countryLabel
           </div>
         {/each}
       </div>
-    {:else if game.message}
+    {:else if game.endTurn}
       {#if game.answerIsCorrect}
         <div class="uk-alert-success uk-margin-remove" uk-alert>
           <h4>
@@ -407,7 +424,7 @@ ORDER BY ?countryLabel
           <div class="uk-card-media-top">
             <img
               alt="Header image of {game.correctAnswer.wikidata.countryLabel.value}"
-              src="{game.correctAnswer.wikidata.pageBanner.value}?width=400px" />
+              src="{game.correctAnswer.wikidata.pageBanner.value}?width={document.getElementById('panel').offsetWidth}px" />
           </div>
         {/if}
 
@@ -424,19 +441,20 @@ ORDER BY ?countryLabel
           </p>
 
           <ul class="uk-list">
-            {#if game.correctAnswer.wikidata.hasOwnProperty('namedAfter')}
+            <!-- {#if game.correctAnswer.wikidata.hasOwnProperty('namedAfter')}
               <li>
                 Country named after:
                 {game.correctAnswer.wikidata.namedAfter.value}
               </li>
-            {/if}
+            {/if} -->
 
             {#if game.correctAnswer.wikidata.hasOwnProperty('pronounciationAudio')}
               <li>
-                Native pronounciation:
-                <audio controls autoplay>
+                Native pronounciation
+                <audio controls>
                   <source
-                    src={game.correctAnswer.wikidata.pronounciationAudio.value} />
+                    type="audio/ogg"
+                    src={game.correctAnswer.wikidata.pronounciationAudio.value.replace('http:', 'https:')} />
                 </audio>
               </li>
             {/if}
@@ -446,7 +464,9 @@ ORDER BY ?countryLabel
                 Anthem:
                 {game.correctAnswer.wikidata.anthemLabel.value}
                 <audio controls>
-                  <source src={game.correctAnswer.wikidata.anthemAudio.value} />
+                  <source
+                    type="audio/ogg"
+                    src={game.correctAnswer.wikidata.anthemAudio.value.replace('http:', 'https:')} />
                 </audio>
               </li>
             {/if}
@@ -485,6 +505,9 @@ ORDER BY ?countryLabel
     <footer class="uk-margin-top">
       <small>❤️ Built with
         <a href="https://docs.mapbox.com/mapbox-gl-js/api/">Mapbox GL JS</a>,
+        <a
+          href="https://docs.mapbox.com/vector-tiles/reference/mapbox-countries-v1/">Mapbox
+          Countries</a>,
         <a href="https://www.openstreetmap.org/">OpenStreetMap</a>,
         <a href="https://www.wikidata.org/wiki/Wikidata:Main_Page">Wikidata</a>
         and
@@ -495,4 +518,9 @@ ORDER BY ?countryLabel
   </main>
 </Panel>
 
-<Map style={mapstyle} worldview={options.mapWorldview} bind:map />
+<Map
+  style={mapstyle}
+  worldview={options.mapWorldview}
+  difficultyLevel={options.difficultyLevel}
+  location={{ bounds: JSON.parse(countriesData.Q142.bounds) }}
+  bind:map />

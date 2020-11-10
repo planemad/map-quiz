@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import mapbox from "mapbox-gl";
 
-  // Worldview for disputed areas. 
+  // Worldview for disputed areas.
   // https://docs.mapbox.com/vector-tiles/reference/mapbox-boundaries-v3/#--polygon---worldview-text
   export let worldview = "US";
 
@@ -11,7 +11,7 @@
     bounds: [
       [-10.76, 49.864],
       [1.863, 59.479],
-    ], 
+    ],
   };
   export let style;
 
@@ -43,6 +43,11 @@
       });
       // map.scrollZoom.disable();
 
+      var scale = new mapbox.ScaleControl({
+        maxWidth: 80,
+      });
+      map.addControl(scale);
+
       map.on("load", function () {
         loadMapLayers();
       });
@@ -57,29 +62,28 @@
   });
 
   function loadMapLayers() {
-	  
-	// Configure the worldview for the country boundaries tileset
-	// https://docs.mapbox.com/vector-tiles/reference/mapbox-countries-v1/
+    // Configure the worldview for the country boundaries tileset
+    // https://docs.mapbox.com/vector-tiles/reference/mapbox-countries-v1/
 
     const worldviewFilter = [
       "all",
       [
         "any",
         ["in", worldview, ["get", "worldview"]],
-        ["==", "all", ["get", "worldview"]]
-	  ],
-	  ["!=", "true", ["get", "disputed"]]
-    ]; 
+        ["==", "all", ["get", "worldview"]],
+      ],
+      ["!=", "true", ["get", "disputed"]],
+    ];
 
-    map.setLayoutProperty("country-label", "visibility", "none");
+    // map.setLayoutProperty("country-label", "visibility", "none");
 
-    map.setPaintProperty("country-boundaries", "fill-color", [
-      "match",
-      ["get", "iso_3166_1"],
-      "GB",
-      "hsla(0, 0%, 94%, 0)",
-      "hsla(36, 0%, 100%, 0.89)",
-    ]);
+    // map.setPaintProperty("country-boundaries", "fill-color", [
+    //   "match",
+    //   ["get", "iso_3166_1"],
+    //   "GB",
+    //   "hsla(0, 0%, 94%, 0)",
+    //   "hsla(36, 0%, 100%, 0.89)",
+    // ]);
 
     map.setFilter("country-boundaries", worldviewFilter);
     map.setFilter("country-boundaries-outline", worldviewFilter);
@@ -120,7 +124,7 @@
   }
 </style>
 
-<div bind:this={container}>
+<div id="map" bind:this={container}>
   {#if map}
     <slot />
   {/if}
