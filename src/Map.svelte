@@ -14,8 +14,8 @@
     ],
   };
   export let style;
-
   export let map;
+
   let container;
   let options;
 
@@ -115,10 +115,10 @@
     position: fixed;
     right: 0;
   }
-  @media (max-width: 600px) {
+  @media (max-width: 1000px) {
     div {
       width: 100%;
-      height: 75%;
+      height: 60%;
       position: absolute;
     }
   }

@@ -11,14 +11,14 @@
   import { parse } from "./wellknown.js";
   import countriesLookup from "./data/mapbox-countries-v1.json";
 
-  let map;
-  let mapstyle = "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg";
+  let map = null;
 
   let options = {
     locale: navigator.language,
     language: "ta",
     fallbackLanguage: "en",
     mapWorldview: "US", // Set worldview to use for disputed areas
+    mapStyle: "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg",
     choices: 4,
     viewportWidth: window.innerWidth,
   };
@@ -117,9 +117,12 @@ ORDER BY ?countryLabel
 
     if (!game.dataLoaded) {
       game.dataLoaded = true;
-      map.on("load", function () {
-        nextTurn();
-      });
+
+      // setTimeout(function(){
+      //   map.on("load", function () {
+      //   nextTurn();
+      // });
+      // }, 1000);
     }
   });
 
@@ -228,13 +231,15 @@ ORDER BY ?countryLabel
       padding: document.getElementById("map").offsetWidth * 0.1,
       duration: 1000,
       bearing: Math.random() * 360,
+      maxZoom: 9,
     });
 
     // Zoom in after 4 seconds
     timeout = setTimeout(function () {
       map.easeTo({
         center: JSON.parse(game.correctAnswer.centroid),
-        zoom: map.getZoom() < 4 ? map.getZoom() : 4,
+        zoom: map.getZoom() < 5 ? map.getZoom() : 5,
+        duration: 6000,
       });
     }, 1000);
   }
@@ -299,10 +304,7 @@ ORDER BY ?countryLabel
 
   function removeIntro() {
     game.showIntro = false;
-  }
-
-  function isMapLoaded() {
-    return map.loaded;
+    nextTurn();
   }
 </script>
 
@@ -310,9 +312,9 @@ ORDER BY ?countryLabel
 </style>
 
 <Panel>
-  <main id="panel" class="uk-position-absolute uk-padding-small">
+  <main id="panel" class="uk-position-absolute uk-padding-small uk-width-1-1">
     {#if game.showIntro}
-      {#if !game.dataLoaded || !isMapLoaded()}
+      {#if !game.dataLoaded}
         <h4>
           <div uk-spinner />
           Loading list of countries.
@@ -349,37 +351,42 @@ ORDER BY ?countryLabel
           </div>
         {/each}
       </div>
+      <p>
+        Score
+        {game.score}
+        /
+        {game.turn}
+        {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
+        <progress class="uk-progress" value={game.score} max={game.turn} />
+      </p>
     {:else if game.endTurn}
       {#if game.answerIsCorrect}
-        <div class="uk-alert-success uk-margin-remove" uk-alert>
-          <h4>
-            {game.correctAnswer.name_lang}
-            is correct!
-
-            <br /><small>Score
-              {game.score}
-              /
-              {game.turn}
-              {#if game.turn > 0}
-                ({Math.round((game.score / game.turn) * 100)}%)
-              {/if}
-            </small>
-          </h4>
+        <div class="uk-margin-remove" uk-alert>
+          <h3>{game.correctAnswer.name_lang} is <b>correct</b>!</h3>
+          <p>
+            Score
+            {game.score}
+            /
+            {game.turn}
+            {#if game.turn > 0}
+              ({Math.round((game.score / game.turn) * 100)}%)
+            {/if}
+            <progress class="uk-progress" value={game.score} max={game.turn} />
+          </p>
         </div>
       {:else}
-        <div class="uk-alert-danger uk-margin-remove" uk-alert>
-          <h4>
-            Sorry, it was
-            {game.correctAnswer.name_lang}.
-            <br /><small>Score
-              {game.score}
-              /
-              {game.turn}
-              {#if game.turn > 0}
-                ({Math.round((game.score / game.turn) * 100)}%)
-              {/if}
-            </small>
-          </h4>
+        <div class="uk-margin-remove" uk-alert>
+          <h3>Sorry, it was {game.correctAnswer.name_lang}.</h3>
+          <p>
+            Score
+            {game.score}
+            /
+            {game.turn}
+            {#if game.turn > 0}
+              ({Math.round((game.score / game.turn) * 100)}%)
+            {/if}
+            <progress class="uk-progress" value={game.score} max={game.turn} />
+          </p>
         </div>
       {/if}
       <button
@@ -448,27 +455,30 @@ ORDER BY ?countryLabel
               </li>
             {/if} -->
 
-            {#if game.correctAnswer.wikidata.hasOwnProperty('pronounciationAudio')}
-              <li>
-                Native pronounciation
-                <audio controls>
-                  <source
-                    type="audio/ogg"
-                    src={game.correctAnswer.wikidata.pronounciationAudio.value.replace('http:', 'https:')} />
-                </audio>
-              </li>
-            {/if}
+            <!-- Skip ogg audio for Safari since it is unsupported -->
+            {#if !/^((?!chrome|android).)*safari/i.test(navigator.userAgent)}
+              {#if game.correctAnswer.wikidata.hasOwnProperty('pronounciationAudio')}
+                <li>
+                  Native pronounciation
+                  <audio controls>
+                    <source
+                      type="audio/ogg"
+                      src={game.correctAnswer.wikidata.pronounciationAudio.value.replace('http:', 'https:')} />
+                  </audio>
+                </li>
+              {/if}
 
-            {#if game.correctAnswer.wikidata.hasOwnProperty('anthemAudio')}
-              <li>
-                Anthem:
-                {game.correctAnswer.wikidata.anthemLabel.value}
-                <audio controls>
-                  <source
-                    type="audio/ogg"
-                    src={game.correctAnswer.wikidata.anthemAudio.value.replace('http:', 'https:')} />
-                </audio>
-              </li>
+              {#if game.correctAnswer.wikidata.hasOwnProperty('anthemAudio')}
+                <li>
+                  Anthem:
+                  {game.correctAnswer.wikidata.anthemLabel.value}
+                  <audio controls>
+                    <source
+                      type="audio/ogg"
+                      src={game.correctAnswer.wikidata.anthemAudio.value.replace('http:', 'https:')} />
+                  </audio>
+                </li>
+              {/if}
             {/if}
 
             <li>
@@ -519,7 +529,7 @@ ORDER BY ?countryLabel
 </Panel>
 
 <Map
-  style={mapstyle}
+  style={options.mapStyle}
   worldview={options.mapWorldview}
   difficultyLevel={options.difficultyLevel}
   location={{ bounds: JSON.parse(countriesData.Q142.bounds) }}
