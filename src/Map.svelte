@@ -71,6 +71,16 @@
 	  ["!=", "true", ["get", "disputed"]]
     ]; 
 
+    map.setLayoutProperty("country-label", "visibility", "none");
+
+    map.setPaintProperty("country-boundaries", "fill-color", [
+      "match",
+      ["get", "iso_3166_1"],
+      "GB",
+      "hsla(0, 0%, 94%, 0)",
+      "hsla(36, 0%, 100%, 0.89)",
+    ]);
+
     map.setFilter("country-boundaries", worldviewFilter);
     map.setFilter("country-boundaries-outline", worldviewFilter);
 

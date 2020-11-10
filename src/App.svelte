@@ -23,6 +23,16 @@
   };
 
   let game = {
+    difficultyLevel: 1, // 1,2,3
+    difficultyLevels: [
+      {
+        message:
+          "You have been looking at maps since you were born, am sure you can do this 🤓",
+      },
+      { message: "😅" },
+      { message: "🤨" },
+      { message: "🙈" },
+    ],
     dataLoaded: false,
     turn: -1,
     score: 0,
@@ -30,6 +40,7 @@
     place: null,
     choices: null,
     message: null,
+    answerIsCorrect: true,
   };
 
   let timeout;
@@ -102,6 +113,7 @@ ORDER BY ?countryLabel
   // New turn. Randomly select a place + get its location
   function nextTurn() {
     if (game.turn == -1) {
+      styleMap("GB");
       game.turn++;
     }
 
@@ -119,8 +131,10 @@ ORDER BY ?countryLabel
         (d) => d.subregion == game.correctAnswer.subregion
       );
 
-      if (!game.choices.includes(place)) {
-        console.log(game.choices, place);
+      // Dont add choice if it already exists
+      if (
+        !game.choices.filter((d) => d.wikidata_id == place.wikidata_id).length
+      ) {
         game.choices.push(place);
       }
     }
@@ -193,21 +207,52 @@ ORDER BY ?countryLabel
       ""
     );
 
+    styleMap(game.correctAnswer.iso_3166_1);
+
+    clearTimeout(timeout);
+
+    // Pan to place
+
+    map.fitBounds(JSON.parse(game.correctAnswer.bounds), {
+      padding: 200,
+      duration: 1000,
+      bearing: Math.random() * 360,
+    });
+
+    // console.log(JSON.parse(game.correctAnswer.bounds))
+
+    // let bounds = ;
+    // bounds = [[bounds[0],bounds[1]],[bounds[2],bounds[3]]]
+    // console.log(bounds)
+
+    // Zoom in after 4 seconds
+    // timeout = setTimeout(function () {
+    //   map.easeTo({
+    //     center: JSON.parse(game.correctAnswer.centroid),
+    //     zoom: 3,
+    //     duration: 1000,
+    //     bearing: Math.random() * 360,
+    //   });
+    // }, 1000);
+  }
+
+  // Style the map to highlight a country
+  function styleMap(iso_3166_1) {
     // Hide country labels
     map.setLayoutProperty("country-label", "visibility", "none");
 
     map.setPaintProperty("country-boundaries", "fill-color", [
       "match",
-      ["get", "wikidata_id"],
-      countryQid,
+      ["get", "iso_3166_1"],
+      iso_3166_1,
       "hsla(0, 0%, 94%, 0)",
       "hsla(36, 0%, 100%, 0.89)",
     ]);
 
     map.setPaintProperty("country-boundaries-outline", "line-color", [
       "match",
-      ["get", "wikidata_id"],
-      countryQid,
+      ["get", "iso_3166_1"],
+      iso_3166_1,
       "hsl(33, 0%, 38%)",
       "hsla(0, 0%, 100%, 0)",
     ]);
@@ -215,28 +260,10 @@ ORDER BY ?countryLabel
     map.setPaintProperty("admin-boundaries-line", "line-color", [
       "match",
       ["get", "iso_3166_1"],
-      game.correctAnswer.iso_3166_1,
+      iso_3166_1,
       "hsl(0, 0%, 100%)",
       "hsl(0, 0%, 60%)",
     ]);
-
-    clearTimeout(timeout);
-
-    // Pan to place
-    map.easeTo({
-      center: JSON.parse(game.correctAnswer.centroid),
-      zoom: 3,
-      duration: 1000,
-      bearing: Math.random() * 360,
-    });
-
-    // Zoom in after 4 seconds
-    timeout = setTimeout(function () {
-      map.easeTo({
-        zoom: 5,
-        duration: 1000,
-      });
-    }, 4000);
   }
 
   // Check if chosen place is correct
@@ -254,8 +281,10 @@ ORDER BY ?countryLabel
     if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
       game.message = `🙌 You got it!`;
+      game.answerIsCorrect = true;
     } else {
       game.message = `🙈 Nope!`;
+      game.answerIsCorrect = false;
     }
     game.turn += 1;
     game.choices = null;
@@ -271,66 +300,80 @@ ORDER BY ?countryLabel
 </style>
 
 <Panel>
-  <main class="uk-position-absolute uk-padding">
+  <main class="uk-position-absolute uk-padding-small">
     {#if game.dataLoaded && game.turn == -1}
-      <h1>Can you guess the country?</h1>
-      <button on:click={nextTurn}>Let's get started!</button>
+      <div>
+        <h1>Can you guess the country?</h1>
+        <button
+          on:click={nextTurn}
+          class="uk-button uk-button-primary uk-button-large uk-width-1-1"
+          style="background-color:#1ba3e3">
+          Let's get started!<br />
+        </button>
+      </div>
     {:else if game.choices}
       <div class="uk-child-width-expand uk-grid-collapse uk-grid-match" uk-grid>
-        {#each game.choices as place}
+        {#each game.choices as choice}
           <div
             class="uk-width-expand@l"
-            on:click={checkAnswer(place.countryLabel.value)}>
-            <div class="uk-card uk-card-default uk-card-body">
-              {place.countryLabel.value}
+            on:click={checkAnswer(choice.countryLabel.value)}>
+            <div
+              data-qid={choice.wikidata_id}
+              class="uk-card uk-card-default uk-card-body">
+              {choice.countryLabel.value}
 
-              {#if place.hasOwnProperty('flag')}
+              {#if choice.hasOwnProperty('flag')}
                 <img
                   class="uk-float-right"
-                  alt="Flag of {place.countryLabel.value}"
-                  src={commonsImage(place.flag.value, 50)} />
+                  alt="Flag of {choice.countryLabel.value}"
+                  src={commonsImage(choice.flag.value, 50)} />
               {/if}
             </div>
           </div>
         {/each}
       </div>
-
-      <h3>
-        Score
-        {game.score}
-        /
-        {game.turn}
-        {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
-      </h3>
     {:else if game.message}
-      <div class="uk-width-expand@l" on:click={nextTurn}>
-        <div class="uk-card uk-card-default uk-card-body">
-          {game.message}
-          <br />
+      {#if game.answerIsCorrect}
+        <div class="uk-alert-success uk-margin-remove" uk-alert>
+          <h4>
+            {game.correctAnswer.name_lang}
+            is correct!
 
-          Score
-          {game.score}
-          /
-          {game.turn}
-          {#if game.turn > 0}
-            ({Math.round((game.score / game.turn) * 100)}%)
-          {/if}
-
-          <br />
-
-          Guess another country.
+            <br /><small>Score
+              {game.score}
+              /
+              {game.turn}
+              {#if game.turn > 0}
+                ({Math.round((game.score / game.turn) * 100)}%)
+              {/if}
+            </small>
+          </h4>
         </div>
-      </div>
+      {:else}
+        <div class="uk-alert-danger uk-margin-remove" uk-alert>
+          <h4>
+            Sorry, it was
+            {game.correctAnswer.name_lang}.
+            <br /><small>Score
+              {game.score}
+              /
+              {game.turn}
+              {#if game.turn > 0}
+                ({Math.round((game.score / game.turn) * 100)}%)
+              {/if}
+            </small>
+          </h4>
+        </div>
+      {/if}
+      <button
+        on:click={nextTurn}
+        class="uk-button uk-button-primary uk-button-large uk-width-1-1"
+        style="background-color:#1ba3e3">
+        Try another country
+        <br />
+      </button>
 
       <div class="uk-card uk-card-default uk-margin-top">
-        {#if game.correctAnswer.wikidata.hasOwnProperty('pageBanner')}
-          <div class="uk-card-media-top">
-            <img
-              alt="Header image of {game.correctAnswer.wikidata.countryLabel.value}"
-              src="{game.correctAnswer.wikidata.pageBanner.value}?width=400px" />
-          </div>
-        {/if}
-
         <div class="uk-card-header">
           <div class="uk-grid-small uk-flex-middle" uk-grid>
             <div class="uk-width-auto">
@@ -360,6 +403,14 @@ ORDER BY ?countryLabel
           </div>
         </div>
 
+        {#if game.correctAnswer.wikidata.hasOwnProperty('pageBanner')}
+          <div class="uk-card-media-top">
+            <img
+              alt="Header image of {game.correctAnswer.wikidata.countryLabel.value}"
+              src="{game.correctAnswer.wikidata.pageBanner.value}?width=400px" />
+          </div>
+        {/if}
+
         <div class="uk-card-body">
           <p>
             {#if game.correctAnswer.wikidata.hasOwnProperty('coatOfArms')}
@@ -372,21 +423,24 @@ ORDER BY ?countryLabel
             {/if}
           </p>
 
-          <ul>
+          <ul class="uk-list">
             <li>
               Capital:
               {#if game.correctAnswer.wikidata.hasOwnProperty('capitalLabel')}
                 {game.correctAnswer.wikidata.capitalLabel.value}
               {:else}None{/if}
             </li>
+          </ul>
+          <h4>Languages</h4>
+          <ul class="uk-list">
             <li>
-              Official languages:
+              Official:
               {#if game.correctAnswer.wikidata.hasOwnProperty('officialLanguageLabels')}
                 {game.correctAnswer.wikidata.officialLanguageLabels.value}
               {:else}Unknown{/if}
             </li>
             <li>
-              Other languages:
+              Other:
               {#if game.correctAnswer.wikidata.hasOwnProperty('otherLanguageLabels')}
                 {game.correctAnswer.wikidata.otherLanguageLabels.value}
               {:else}Unknown{/if}
@@ -402,7 +456,14 @@ ORDER BY ?countryLabel
       </div>
     {/if}
     <footer class="uk-margin-top">
-      <a href="https://github.com/planemad/map-quiz/tree/main">Source Code</a>
+      <small>❤️ Built with
+        <a href="https://docs.mapbox.com/mapbox-gl-js/api/">Mapbox GL JS</a>,
+        <a href="https://www.openstreetmap.org/">OpenStreetMap</a>,
+        <a href="https://www.wikidata.org/wiki/Wikidata:Main_Page">Wikidata</a>
+        and
+        <a href="https://svelte.dev/">Svelte</a>
+        |
+        <a href="https://github.com/planemad/map-quiz/tree/main">Source code</a></small>
     </footer>
   </main>
 </Panel>
