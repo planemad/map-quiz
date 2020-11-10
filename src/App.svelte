@@ -312,10 +312,10 @@ ORDER BY ?countryLabel
         </button>
       </div>
     {:else if game.choices}
-      <div class="uk-child-width-expand uk-grid-collapse uk-grid-match" uk-grid>
+      <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
           <div
-            class="uk-width-expand@l"
+            class="uk-width-1-1"
             on:click={checkAnswer(choice.countryLabel.value)}>
             <div
               data-qid={choice.wikidata_id}
@@ -394,10 +394,10 @@ ORDER BY ?countryLabel
                 <p class="uk-text-meta uk-margin-remove-top">
                   {game.correctAnswer.name}
                 </p>
-                {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
-                  <a
-                    href={game.correctAnswer.wikidata.website.value}>{game.correctAnswer.wikidata.website.value}</a>
-                {/if}
+              {/if}
+              {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
+                <a
+                  href={game.correctAnswer.wikidata.website.value}>{game.correctAnswer.wikidata.website.value}</a>
               {/if}
             </div>
           </div>
@@ -424,6 +424,33 @@ ORDER BY ?countryLabel
           </p>
 
           <ul class="uk-list">
+            {#if game.correctAnswer.wikidata.hasOwnProperty('namedAfter')}
+              <li>
+                Country named after:
+                {game.correctAnswer.wikidata.namedAfter.value}
+              </li>
+            {/if}
+
+            {#if game.correctAnswer.wikidata.hasOwnProperty('pronounciationAudio')}
+              <li>
+                Native pronounciation:
+                <audio controls autoplay>
+                  <source
+                    src={game.correctAnswer.wikidata.pronounciationAudio.value} />
+                </audio>
+              </li>
+            {/if}
+
+            {#if game.correctAnswer.wikidata.hasOwnProperty('anthemAudio')}
+              <li>
+                Anthem:
+                {game.correctAnswer.wikidata.anthemLabel.value}
+                <audio controls>
+                  <source src={game.correctAnswer.wikidata.anthemAudio.value} />
+                </audio>
+              </li>
+            {/if}
+
             <li>
               Capital:
               {#if game.correctAnswer.wikidata.hasOwnProperty('capitalLabel')}
