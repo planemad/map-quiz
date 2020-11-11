@@ -61,10 +61,9 @@
     // Detect user location country
 
     fetchTimeout(
-      "https://freegeoip.app/json/118.114.8.176",
-      {
-},
-      1000,
+      "https://freegeoip.app/json/",
+      {},
+      2000,
       "Geoip detection timed out"
     )
       .then((res) => {
@@ -77,16 +76,20 @@
       .then((json) => {
         // settings.locale += "-" + json.country_code;
 
-        settings.mapWorldview = getWorldview(json.country_code, settings.locale);
+        settings.mapWorldview = getWorldview(
+          json.country_code,
+          settings.locale
+        );
         settings.userLocation = {
           iso_3166_1: json.country_code,
           iso_3166_2: json.country_code + "-" + json.region_code,
-          lngLat:{
-          lng: json.longitude,
-          lat: json.latitude
-        }}
+          lngLat: {
+            lng: json.longitude,
+            lat: json.latitude,
+          },
+        };
 
-        if(settings.locale.split("-").length==1){
+        if (settings.locale.split("-").length == 1) {
           settings.locale += "-" + settings.userLocation.iso_3166_1;
         }
 
@@ -191,7 +194,7 @@ ORDER BY ?countryLabel
     let query = `
       select ${
         hasCapital ? "(SAMPLE(?capitalLocation) as ?capitalLocation)" : ""
-      } ?anthemLabel ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website)  (SAMPLE(?namedAfter) as ?namedAfter) (SAMPLE(?pageBanner) as ?pageBanner) (SAMPLE(?pronounciationAudio) as ?pronounciationAudio) where {
+      } ?anthemLabel ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?spokenLanguageLabel; SEPARATOR=", ") AS ?spokenLanguageLabels) (SAMPLE(?website) AS ?website)  (GROUP_CONCAT(DISTINCT ?namedAfterLabel; SEPARATOR=", ") AS ?namedAfterLabels) (SAMPLE(?pageBanner) as ?pageBanner) where {
 
         OPTIONAL {  wd:${game.correctAnswer.wikidata_id}  wdt:P85 ?anthem }.
         OPTIONAL { ?anthem wdt:P51 ?anthemAudio }.
@@ -202,13 +205,10 @@ ORDER BY ?countryLabel
         OPTIONAL { wd:${game.correctAnswer.wikidata_id} wdt:P948 ?pageBanner}.
         OPTIONAL { wd:${
           game.correctAnswer.wikidata_id
-        } wdt:P443 ?pronounciationAudio}.
-        OPTIONAL { wd:${
-          game.correctAnswer.wikidata_id
         } wdt:P37 ?officialLanguage }.
         OPTIONAL { wd:${
           game.correctAnswer.wikidata_id
-        } wdt:P2936 ?otherLanguage }.
+        } wdt:P2936 ?spokenLanguage }.
 
         ${
           hasCapital
@@ -224,7 +224,8 @@ ORDER BY ?countryLabel
         settings.language
       },${settings.fallbackLanguage}". 
       ?officialLanguage rdfs:label ?officialLanguageLabel .
-   ?otherLanguage rdfs:label ?otherLanguageLabel .
+   ?spokenLanguage rdfs:label ?spokenLanguageLabel .
+   ?namedAfter rdfs:label ?namedAfterLabel .
    ?anthem rdfs:label ?anthemLabel .
   }
       }
@@ -558,26 +559,15 @@ ORDER BY ?countryLabel
           </p>
 
           <ul class="uk-list">
-            <!-- {#if game.correctAnswer.wikidata.hasOwnProperty('namedAfter')}
+            {#if game.correctAnswer.wikidata.hasOwnProperty('namedAfterLabels') && game.correctAnswer.wikidata.namedAfterLabels.value.length}
               <li>
                 Country named after:
-                {game.correctAnswer.wikidata.namedAfter.value}
+                {game.correctAnswer.wikidata.namedAfterLabels.value}
               </li>
-            {/if} -->
+            {/if}
 
             <!-- Skip ogg audio for Safari since it is unsupported -->
             {#if !/^((?!chrome|android).)*safari/i.test(navigator.userAgent)}
-              {#if game.correctAnswer.wikidata.hasOwnProperty('pronounciationAudio')}
-                <li>
-                  Native pronounciation
-                  <audio controls>
-                    <source
-                      type="audio/ogg"
-                      src={game.correctAnswer.wikidata.pronounciationAudio.value.replace('http:', 'https:')} />
-                  </audio>
-                </li>
-              {/if}
-
               {#if game.correctAnswer.wikidata.hasOwnProperty('anthemAudio')}
                 <li>
                   Anthem:
@@ -603,13 +593,17 @@ ORDER BY ?countryLabel
             <li>
               Official:
               {#if game.correctAnswer.wikidata.hasOwnProperty('officialLanguageLabels')}
+                <b>{game.correctAnswer.wikidata.officialLanguageLabels.value.split(',').length}</b>
+                -
                 {game.correctAnswer.wikidata.officialLanguageLabels.value}
               {:else}Unknown{/if}
             </li>
             <li>
               Other:
-              {#if game.correctAnswer.wikidata.hasOwnProperty('otherLanguageLabels')}
-                {game.correctAnswer.wikidata.otherLanguageLabels.value}
+              {#if game.correctAnswer.wikidata.hasOwnProperty('spokenLanguageLabels')}
+                <b>{game.correctAnswer.wikidata.spokenLanguageLabels.value.split(',').length}</b>
+                -
+                {game.correctAnswer.wikidata.spokenLanguageLabels.value}
               {:else}Unknown{/if}
             </li>
           </ul>
@@ -639,6 +633,6 @@ ORDER BY ?countryLabel
   style={settings.mapStyle}
   worldview={settings.mapWorldview}
   locale={settings.locale}
-  location={{ bounds: JSON.parse(countriesData.Q142.bounds), point:settings.userLocation }}
+  location={{ bounds: JSON.parse(countriesData.Q142.bounds), point: settings.userLocation }}
   data={countriesData}
   bind:map />

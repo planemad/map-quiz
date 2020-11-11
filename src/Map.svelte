@@ -21,8 +21,8 @@
   let container;
   let options;
 
-  let localeLanguage = locale.split("-")[0] || "en"
-  let localeCountry = locale.split("-")[1] || "US"
+  let localeLanguage = locale.split("-")[0] || "en";
+  let localeCountry = locale.split("-")[1] || "US";
 
   function resetView() {
     map.fitBounds(location.bounds);
@@ -127,12 +127,13 @@
     // Use labels from mapbox-streets directly for supported languages
     // Else join translations from Wikidata for country labels
     if (supportedMapLanguages.indexOf(localeLanguage) >= 0) {
-
-      mapTextField = ["coalesce", ["get", "name_" + localeLanguage], ["get", "name"]];
+      mapTextField = [
+        "coalesce",
+        ["get", "name_" + localeLanguage],
+        ["get", "name"],
+      ];
       map.setLayoutProperty("country-label", "text-field", mapTextField);
-
     } else {
-
       let joinTranslationExpression = ["match", ["get", "iso_3166_1"]];
 
       Object.keys(data).forEach((qid) => {
