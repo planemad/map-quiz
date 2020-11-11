@@ -6,16 +6,20 @@
 -->
 <script>
   import Map from "./Map.svelte";
+  import { getWorldview } from "./utils.js";
   import Panel from "./Panel.svelte";
+
   import { queryWikidata, pickCountry, shuffle } from "./utils.js";
   import { parse } from "./wellknown.js";
+  import fetchTimeout from "fetch-timeout";
   import countriesLookup from "./data/mapbox-countries-v1.json";
 
   let map = null;
 
-  let options = {
+  let settings = {
     locale: navigator.language,
-    language: "ta",
+    language: navigator.language.split("-")[0] || "en",
+    userLocation: null,
     fallbackLanguage: "en",
     mapWorldview: "US", // Set worldview to use for disputed areas
     mapStyle: "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg",
@@ -49,27 +53,49 @@
   // Customize to user language and location
   // Use English as fallback
 
-  if (options.locale.split("-").length == 1) detectLocation();
+  detectLocation();
 
   function detectLocation() {
-    // Detect user country
-    fetch("https://freegeoip.app/json/")
-      .then((res) => res.json())
-      .then((d) => {
-        options.locale += "-" + d.country_code;
-        customizeLocale();
+    settings.language = settings.locale.split("-")[0];
+
+    // Detect user location country
+
+    fetchTimeout(
+      "https://freegeoip.app/json/118.114.8.176",
+      {
+},
+      1000,
+      "Geoip detection timed out"
+    )
+      .then((res) => {
+        if (res.status !== 200) {
+          throw new Error("Status code not OK", res);
+        } else {
+          return res.json();
+        }
       })
-      .catch(() => null);
-  }
+      .then((json) => {
+        // settings.locale += "-" + json.country_code;
 
-  customizeLocale();
+        settings.mapWorldview = getWorldview(json.country_code, settings.locale);
+        settings.userLocation = {
+          iso_3166_1: json.country_code,
+          iso_3166_2: json.country_code + "-" + json.region_code,
+          lngLat:{
+          lng: json.longitude,
+          lat: json.latitude
+        }}
 
-  function customizeLocale() {
-    console.log("Detected locale", options.locale);
-    options.language = options.locale.split("-")[0];
-    if (["IN", "JP", "CN", "US"].indexOf(options.locale.split("-")[1]) >= 0) {
-      options.mapWorldview = options.locale.split("-")[1];
-    }
+        if(settings.locale.split("-").length==1){
+          settings.locale += "-" + settings.userLocation.iso_3166_1;
+        }
+
+        // DEBUG: app settings
+        console.log("Detected settings", settings);
+      })
+      .catch((err) => {
+        console.log("error", err);
+      });
   }
 
   // Build a list of Wikidata qids to query from the Mapbox Countries list
@@ -77,7 +103,7 @@
   let countriesData = countriesLookup
     .filter(
       (d) =>
-        (d.worldview == "all" || d.worldview == options.mapWorldview) &&
+        (d.worldview == "all" || d.worldview == settings.mapWorldview) &&
         d.disputed == "FALSE"
       // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
     )
@@ -96,8 +122,8 @@
     # Retrieve labels to enable group_concat 
     # https://stackoverflow.com/questions/48855767/group-concat-not-working
     SERVICE wikibase:label {
-    bd:serviceParam wikibase:language "${options.language},${
-    options.fallbackLanguage
+    bd:serviceParam wikibase:language "${settings.language},${
+    settings.fallbackLanguage
   }". 
     ?country rdfs:label ?countryLabel . 
     ?capital rdfs:label ?capitalLabel . 
@@ -129,8 +155,7 @@ ORDER BY ?countryLabel
 
   // New turn. Randomly select a place + get its location
   function nextTurn() {
-
-    window.scrollTo(0,0);
+    window.scrollTo(0, 0);
 
     game.endTurn = false;
 
@@ -142,7 +167,7 @@ ORDER BY ?countryLabel
     // Create an array of possible choices in the same subregion and shuffle the order
     game.choices = [];
     game.choices.push(game.correctAnswer);
-    while (game.choices.length < options.choices) {
+    while (game.choices.length < settings.choices) {
       let place = pickCountry(
         countriesData,
         (d) => d.subregion == game.correctAnswer.subregion
@@ -196,8 +221,8 @@ ORDER BY ?countryLabel
         }
         
       service wikibase:label { bd:serviceParam wikibase:language "${
-        options.language
-      },${options.fallbackLanguage}". 
+        settings.language
+      },${settings.fallbackLanguage}". 
       ?officialLanguage rdfs:label ?officialLanguageLabel .
    ?otherLanguage rdfs:label ?otherLanguageLabel .
    ?anthem rdfs:label ?anthemLabel .
@@ -345,7 +370,7 @@ ORDER BY ?countryLabel
   function checkAnswer(code) {
     game.endTurn = true;
 
-    window.scrollTo(0,0);
+    window.scrollTo(0, 0);
 
     // Show country labels
     map.easeTo({
@@ -476,7 +501,8 @@ ORDER BY ?countryLabel
         on:click={nextTurn}
         class="uk-button uk-button-primary uk-button-large uk-width-1-1"
         style="background-color:#1ba3e3"
-        href="#map" uk-scroll>
+        href="#map"
+        uk-scroll>
         Try another country
       </button>
 
@@ -610,9 +636,9 @@ ORDER BY ?countryLabel
 </Panel>
 
 <Map
-  style={options.mapStyle}
-  worldview={options.mapWorldview}
-  locale={options.locale}
-  difficultyLevel={options.difficultyLevel}
-  location={{ bounds: JSON.parse(countriesData.Q142.bounds) }}
+  style={settings.mapStyle}
+  worldview={settings.mapWorldview}
+  locale={settings.locale}
+  location={{ bounds: JSON.parse(countriesData.Q142.bounds), point:settings.userLocation }}
+  data={countriesData}
   bind:map />

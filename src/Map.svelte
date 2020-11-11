@@ -16,9 +16,13 @@
   export let style;
   export let map;
   export let locale;
+  export let data;
 
   let container;
   let options;
+
+  let localeLanguage = locale.split("-")[0] || "en"
+  let localeCountry = locale.split("-")[1] || "US"
 
   function resetView() {
     map.fitBounds(location.bounds);
@@ -88,6 +92,8 @@
     map.setFilter("country-boundaries-outline", worldviewFilter);
     map.setFilter("admin-boundaries-line", worldviewFilter);
 
+    map.setLayoutProperty("country-label", "visibility", "none");
+
     // Set language of labels if supported
     // https://docs.mapbox.com/vector-tiles/reference/mapbox-streets-v8/#name-text--name_lang-code-text
     let supportedMapLanguages = [
@@ -106,27 +112,44 @@
       "vi",
     ];
 
-    let language = locale.split("-")[0];
-
-    // Configure language fallbacks for simplified and traditional Chinese
-    if (
-      ["zh"].indexOf(language) >= 0 ||
-      ["CN"].indexOf(locale.split("-")[1]) >= 0
-    ) {
-      language = "zh-Hans";
-    }
-    if (["TW", "HK", "SG"].indexOf(locale.split("-")[1]) >= 0) {
-      language = "zh-Hant";
+    // Disambiguate Chinese to simplified or traditional based on country
+    if (["zh"].indexOf(localeLanguage) >= 0) {
+      if (["CN"].indexOf(localeCountry) >= 0) {
+        localeLanguage = "zh-Hans";
+      }
+      if (["TW", "HK", "SG"].indexOf(localeCountry) >= 0) {
+        localeLanguage = "zh-Hant";
+      }
     }
 
     let mapTextField;
-    if (supportedMapLanguages.indexOf(language) >= 0) {
-      mapTextField = ["coalesce", ["get", "name_" + language], ["get", "name"]];
+
+    // Use labels from mapbox-streets directly for supported languages
+    // Else join translations from Wikidata for country labels
+    if (supportedMapLanguages.indexOf(localeLanguage) >= 0) {
+
+      mapTextField = ["coalesce", ["get", "name_" + localeLanguage], ["get", "name"]];
+      map.setLayoutProperty("country-label", "text-field", mapTextField);
+
     } else {
+
+      let joinTranslationExpression = ["match", ["get", "iso_3166_1"]];
+
+      Object.keys(data).forEach((qid) => {
+        joinTranslationExpression.push([data[qid].iso_3166_1]);
+        joinTranslationExpression.push(data[qid].name_lang);
+      });
+      joinTranslationExpression.push("");
+
+      map.setLayoutProperty(
+        "country-label",
+        "text-field",
+        joinTranslationExpression
+      );
+
       mapTextField = ["coalesce", ["get", "name_en"], ["get", "name"]];
     }
 
-    map.setLayoutProperty("country-label", "text-field", mapTextField);
     map.setLayoutProperty("settlement-minor-label", "text-field", mapTextField);
     map.setLayoutProperty("settlement-major-label", "text-field", mapTextField);
 

@@ -1,7 +1,18 @@
-import { bbox } from "@turf/turf";
-import { parse } from "./wellknown.js";
-
 const apiurl = "https://query.wikidata.org/sparql?query=";
+
+
+export function getWorldview(iso_3166_1, locale){
+  let worldview = "US";
+  let supportedWorldViews = ["IN", "JP", "CN", "US"]
+
+  let userLocation = iso_3166_1 || locale.split("-")[1].toUpper();
+
+  if (supportedWorldViews.indexOf(userLocation) >= 0) {
+    worldview = userLocation;
+  }
+
+  return worldview
+}
 
 // Query Wikidata using SPARQL
 // https://query.wikidata.org
