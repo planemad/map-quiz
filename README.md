@@ -1,6 +1,6 @@
 # map-quiz
 
-A simple and fun map-quiz to test your knowledge of countries.
+A simple and fun map-quiz to test your knowledge of countries. Original app idea by [Ahmad Barclay](https://github.com/bothness/ons-geo-game).
 
 ## Developing
 
