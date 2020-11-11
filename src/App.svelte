@@ -65,6 +65,7 @@
   customizeLocale();
 
   function customizeLocale() {
+    console.log("Detected locale", options.locale);
     options.language = options.locale.split("-")[0];
     if (["IN", "JP", "CN", "US"].indexOf(options.locale.split("-")[1]) >= 0) {
       options.mapWorldview = options.locale.split("-")[1];
@@ -128,7 +129,12 @@ ORDER BY ?countryLabel
 
   // New turn. Randomly select a place + get its location
   function nextTurn() {
+
+    window.scrollTo(0,0);
+
     game.endTurn = false;
+
+    map.setPaintProperty("country-boundaries", "fill-opacity", 0);
 
     // Get a random place (right answer)
     game.correctAnswer = pickCountry(countriesData);
@@ -159,7 +165,7 @@ ORDER BY ?countryLabel
 
     let query = `
       select ${
-        hasCapital ? "(SAMPLE(?capitalLocation) as ?capitalLocation)" : null
+        hasCapital ? "(SAMPLE(?capitalLocation) as ?capitalLocation)" : ""
       } ?anthemLabel ?anthemAudio ?coatOfArms (GROUP_CONCAT(DISTINCT ?officialLanguageLabel; SEPARATOR=", ") AS ?officialLanguageLabels) (GROUP_CONCAT(DISTINCT ?otherLanguageLabel; SEPARATOR=", ") AS ?otherLanguageLabels) (SAMPLE(?website) AS ?website)  (SAMPLE(?namedAfter) as ?namedAfter) (SAMPLE(?pageBanner) as ?pageBanner) (SAMPLE(?pronounciationAudio) as ?pronounciationAudio) where {
 
         OPTIONAL {  wd:${game.correctAnswer.wikidata_id}  wdt:P85 ?anthem }.
@@ -186,7 +192,7 @@ ORDER BY ?countryLabel
             "http://www.wikidata.org/entity/",
             ""
           )} wdt:P625 ?capitalLocation }.`
-            : null
+            : ""
         }
         
       service wikibase:label { bd:serviceParam wikibase:language "${
@@ -234,6 +240,8 @@ ORDER BY ?countryLabel
       maxZoom: 9,
     });
 
+    map.setPaintProperty("country-boundaries", "fill-opacity", 1);
+
     // Zoom in after 4 seconds
     timeout = setTimeout(function () {
       map.easeTo({
@@ -245,18 +253,23 @@ ORDER BY ?countryLabel
   }
 
   // Style the map to highlight a country
-  function styleMap(iso_3166_1) {
+  function styleMap(iso_3166_1, mode) {
     // Hide country labels
     map.setLayoutProperty("country-label", "visibility", "none");
+    map.setLayoutProperty("settlement-minor-label", "visibility", "none");
+    map.setLayoutProperty("settlement-major-label", "visibility", "none");
 
+    // Mask country boundary
     map.setPaintProperty("country-boundaries", "fill-color", [
-      "match",
-      ["get", "iso_3166_1"],
-      iso_3166_1,
+      "case",
+      ["match", ["get", "iso_3166_1"], [iso_3166_1], true, false],
       "hsla(0, 0%, 94%, 0)",
+      ["match", ["get", "disputed"], ["true"], true, false],
+      "hsla(36, 0%, 10%, 0.05)",
       "hsla(36, 0%, 100%, 0.89)",
     ]);
 
+    // Style country outline and internal boundaries
     map.setPaintProperty("country-boundaries-outline", "line-color", [
       "match",
       ["get", "iso_3166_1"],
@@ -266,17 +279,73 @@ ORDER BY ?countryLabel
     ]);
 
     map.setPaintProperty("admin-boundaries-line", "line-color", [
+      "case",
+      ["match", ["get", "iso_3166_1"], [iso_3166_1], true, false],
+      "hsl(0, 0%, 100%)",
+      ["match", ["get", "disputed"], ["true"], true, false],
+      "hsl(0, 0%, 82%)",
+      "hsl(0, 0%, 66%)",
+    ]);
+
+    map.setLayoutProperty("country-label", "symbol-sort-key", [
       "match",
       ["get", "iso_3166_1"],
       iso_3166_1,
-      "hsl(0, 0%, 100%)",
-      "hsl(0, 0%, 60%)",
+      0,
+      1,
+    ]);
+
+    map.setLayoutProperty("settlement-minor-label", "symbol-sort-key", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      0,
+      1,
+    ]);
+
+    // Highlight matching country and city labels
+    map.setPaintProperty("country-label", "text-opacity", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      1,
+      0.3,
+    ]);
+    map.setPaintProperty("settlement-minor-label", "text-opacity", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      1,
+      0.2,
+    ]);
+    map.setPaintProperty("settlement-major-label", "text-opacity", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      1,
+      0.2,
+    ]);
+    map.setPaintProperty("settlement-minor-label", "icon-opacity", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      1,
+      0.1,
+    ]);
+    map.setPaintProperty("settlement-major-label", "icon-opacity", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      1,
+      0.1,
     ]);
   }
 
   // Check if chosen place is correct
   function checkAnswer(code) {
     game.endTurn = true;
+
+    window.scrollTo(0,0);
 
     // Show country labels
     map.easeTo({
@@ -285,6 +354,8 @@ ORDER BY ?countryLabel
       duration: 1000,
     });
     map.setLayoutProperty("country-label", "visibility", "visible");
+    map.setLayoutProperty("settlement-minor-label", "visibility", "visible");
+    map.setLayoutProperty("settlement-major-label", "visibility", "visible");
 
     if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
@@ -309,6 +380,9 @@ ORDER BY ?countryLabel
 </script>
 
 <style>
+  .flag {
+    border: 1px solid #eaeaea;
+  }
 </style>
 
 <Panel>
@@ -331,6 +405,11 @@ ORDER BY ?countryLabel
         </div>
       {/if}
     {:else if game.choices}
+      <h4>
+        Indentify this country in
+        {game.correctAnswer.subregion}
+        ({game.correctAnswer.region}):
+      </h4>
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
           <div
@@ -343,7 +422,7 @@ ORDER BY ?countryLabel
 
               {#if choice.hasOwnProperty('flag')}
                 <img
-                  class="uk-float-right"
+                  class="uk-float-right flag"
                   alt="Flag of {choice.countryLabel.value}"
                   src={commonsImage(choice.flag.value, 50)} />
               {/if}
@@ -385,16 +464,20 @@ ORDER BY ?countryLabel
             {#if game.turn > 0}
               ({Math.round((game.score / game.turn) * 100)}%)
             {/if}
-            <progress class="uk-progress" value={game.score} max={game.turn} />
+            <progress
+              class="uk-progress"
+              value={game.score}
+              max={game.turn}
+              style="background-color:red" />
           </p>
         </div>
       {/if}
       <button
         on:click={nextTurn}
         class="uk-button uk-button-primary uk-button-large uk-width-1-1"
-        style="background-color:#1ba3e3">
+        style="background-color:#1ba3e3"
+        href="#map" uk-scroll>
         Try another country
-        <br />
       </button>
 
       <div class="uk-card uk-card-default uk-margin-top">
@@ -405,7 +488,8 @@ ORDER BY ?countryLabel
                 <a href={game.correctAnswer.wikidata.flag.value}>
                   <img
                     alt="Flag of {game.correctAnswer.wikidata.countryLabel.value}"
-                    src="{game.correctAnswer.wikidata.flag.value}?width=100px" />
+                    src="{game.correctAnswer.wikidata.flag.value}?width=100px"
+                    class="flag" />
                 </a>
               {/if}
             </div>
@@ -514,10 +598,7 @@ ORDER BY ?countryLabel
     {/if}
     <footer class="uk-margin-top">
       <small>❤️ Built with
-        <a href="https://docs.mapbox.com/mapbox-gl-js/api/">Mapbox GL JS</a>,
-        <a
-          href="https://docs.mapbox.com/vector-tiles/reference/mapbox-countries-v1/">Mapbox
-          Countries</a>,
+        <a href="https://docs.mapbox.com/mapbox-gl-js/api/">Mapbox</a>,
         <a href="https://www.openstreetmap.org/">OpenStreetMap</a>,
         <a href="https://www.wikidata.org/wiki/Wikidata:Main_Page">Wikidata</a>
         and
@@ -531,6 +612,7 @@ ORDER BY ?countryLabel
 <Map
   style={options.mapStyle}
   worldview={options.mapWorldview}
+  locale={options.locale}
   difficultyLevel={options.difficultyLevel}
   location={{ bounds: JSON.parse(countriesData.Q142.bounds) }}
   bind:map />

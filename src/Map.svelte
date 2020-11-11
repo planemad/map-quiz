@@ -15,6 +15,7 @@
   };
   export let style;
   export let map;
+  export let locale;
 
   let container;
   let options;
@@ -43,10 +44,19 @@
       });
       // map.scrollZoom.disable();
 
+      mapbox.setRTLTextPlugin(
+        "https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.2.3/mapbox-gl-rtl-text.js",
+        null,
+        true // Lazy load the plugin
+      );
+
+      var nav = new mapbox.NavigationControl();
+      map.addControl(nav, "top-right");
+
       var scale = new mapbox.ScaleControl({
         maxWidth: 80,
       });
-      map.addControl(scale);
+      map.addControl(scale, "bottom-right");
 
       map.on("load", function () {
         loadMapLayers();
@@ -72,21 +82,53 @@
         ["in", worldview, ["get", "worldview"]],
         ["==", "all", ["get", "worldview"]],
       ],
-      ["!=", "true", ["get", "disputed"]],
     ];
-
-    // map.setLayoutProperty("country-label", "visibility", "none");
-
-    // map.setPaintProperty("country-boundaries", "fill-color", [
-    //   "match",
-    //   ["get", "iso_3166_1"],
-    //   "GB",
-    //   "hsla(0, 0%, 94%, 0)",
-    //   "hsla(36, 0%, 100%, 0.89)",
-    // ]);
 
     map.setFilter("country-boundaries", worldviewFilter);
     map.setFilter("country-boundaries-outline", worldviewFilter);
+    map.setFilter("admin-boundaries-line", worldviewFilter);
+
+    // Set language of labels if supported
+    // https://docs.mapbox.com/vector-tiles/reference/mapbox-streets-v8/#name-text--name_lang-code-text
+    let supportedMapLanguages = [
+      "ar",
+      "en",
+      "es",
+      "fr",
+      "de",
+      "it",
+      "pt",
+      "ru",
+      "zh-Hans",
+      "zh-Hant",
+      "ja",
+      "ko",
+      "vi",
+    ];
+
+    let language = locale.split("-")[0];
+
+    // Configure language fallbacks for simplified and traditional Chinese
+    if (
+      ["zh"].indexOf(language) >= 0 ||
+      ["CN"].indexOf(locale.split("-")[1]) >= 0
+    ) {
+      language = "zh-Hans";
+    }
+    if (["TW", "HK", "SG"].indexOf(locale.split("-")[1]) >= 0) {
+      language = "zh-Hant";
+    }
+
+    let mapTextField;
+    if (supportedMapLanguages.indexOf(language) >= 0) {
+      mapTextField = ["coalesce", ["get", "name_" + language], ["get", "name"]];
+    } else {
+      mapTextField = ["coalesce", ["get", "name_en"], ["get", "name"]];
+    }
+
+    map.setLayoutProperty("country-label", "text-field", mapTextField);
+    map.setLayoutProperty("settlement-minor-label", "text-field", mapTextField);
+    map.setLayoutProperty("settlement-major-label", "text-field", mapTextField);
 
     // Add new boundary to the map
 
