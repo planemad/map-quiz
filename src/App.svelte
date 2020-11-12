@@ -9,7 +9,7 @@
   import { getWorldview } from "./utils.js";
   import Panel from "./Panel.svelte";
 
-  import { queryWikidata, pickCountry, shuffle } from "./utils.js";
+  import { queryWikidata, shuffle } from "./utils.js";
   import { parse } from "./wellknown.js";
   import fetchTimeout from "fetch-timeout";
   import countriesLookup from "./data/mapbox-countries-v1.json";
@@ -28,16 +28,6 @@
   };
 
   let game = {
-    difficultyLevel: 1, // 1,2,3
-    difficultyLevels: [
-      {
-        message:
-          "You have been looking at maps since you were born, am sure you can do this 🤓",
-      },
-      { message: "😅" },
-      { message: "🤨" },
-      { message: "🙈" },
-    ],
     dataLoaded: false,
     showIntro: true,
     turn: 0,
@@ -46,6 +36,8 @@
     place: null,
     choices: null,
     answerIsCorrect: null,
+    answerHistory: {},
+    choices: []
   };
 
   let timeout;
@@ -163,26 +155,37 @@ ORDER BY ?countryLabel
     game.endTurn = false;
 
     map.setPaintProperty("country-boundaries", "fill-opacity", 0);
+    
 
-    // Get a random place (right answer)
-    game.correctAnswer = pickCountry(countriesData);
+    // Pick a country not yet answered for the round
 
-    // Create an array of possible choices in the same subregion and shuffle the order
+    let allKeys= Object.keys(countriesData).sort((a, b) => a.localeCompare(b))
+    let unansweredKeys=[];
+
+    allKeys.forEach(k=>{
+      if(!Object.keys(game.answerHistory).includes(k)){
+        unansweredKeys.push(k);
+      }
+    })
+
+    let selectedKey = unansweredKeys[unansweredKeys.length * Math.random() << 0]
+    game.correctAnswer = countriesData[selectedKey];
+    game.answerHistory[game.correctAnswer.wikidata_id]=[]
+
     game.choices = [];
     game.choices.push(game.correctAnswer);
-    while (game.choices.length < settings.choices) {
-      let place = pickCountry(
-        countriesData,
-        (d) => d.subregion == game.correctAnswer.subregion
-      );
 
-      // Dont add choice if it already exists
-      if (
-        !game.choices.filter((d) => d.wikidata_id == place.wikidata_id).length
-      ) {
-        game.choices.push(place);
-      }
-    }
+    // Add choices similiar to the selected key
+    allKeys.forEach(k=>{
+      if(k != game.correctAnswer.wikidata_id && countriesData[k].subregion ==  game.correctAnswer.subregion && game.choices.length < settings.choices)
+      game.choices.push(countriesData[k]);
+    })
+    allKeys.forEach(k=>{
+      if(k != game.correctAnswer.wikidata_id && countriesData[k].region ==  game.correctAnswer.region && game.choices.length < settings.choices)
+      game.choices.push(countriesData[k]);
+    })
+
+    // Shuffle order of choices
     game.choices = shuffle(game.choices);
 
     // Add a location marker to the map for the country
@@ -309,8 +312,13 @@ ORDER BY ?countryLabel
       ["match", ["get", "iso_3166_1"], [iso_3166_1], true, false],
       "hsl(0, 0%, 100%)",
       ["match", ["get", "disputed"], ["true"], true, false],
-      "hsl(0, 0%, 82%)",
-      "hsl(0, 0%, 66%)",
+      "hsla(0, 0%, 82%,0.5)",
+      [
+        "case",
+        ["==", ["get", "admin_level"], 0],
+        "hsla(0, 0%, 66%,0.5)",
+        "hsla(0, 0%, 66%,0)",
+      ]
     ]);
 
     map.setLayoutProperty("country-label", "symbol-sort-key", [
@@ -383,11 +391,17 @@ ORDER BY ?countryLabel
     map.setLayoutProperty("settlement-minor-label", "visibility", "visible");
     map.setLayoutProperty("settlement-major-label", "visibility", "visible");
 
+
     if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
       game.answerIsCorrect = true;
+
+      game.answerHistory[game.correctAnswer.wikidata_id].push(true)
+
     } else {
       game.answerIsCorrect = false;
+
+      game.answerHistory[game.correctAnswer.wikidata_id].push(false)
     }
 
     game.turn += 1;
