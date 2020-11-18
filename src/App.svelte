@@ -94,9 +94,12 @@
     .filter(
       (d) =>
         (d.worldview == "all" || d.worldview == settings.mapWorldview) &&
-        d.disputed == "FALSE"
-      // DEBUG: Filter specific countries
-      // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
+        (d.description == "sovereign state" || d.description == "dependent territory")
+        // DEBUG: Filter specific countries
+        // (d.wikidata_id == "Q142" ||
+        //   d.wikidata_id == "Q1044" ||
+        //   d.wikidata_id == "Q1049" ||
+        //   d.wikidata_id == "Q237")
     )
     .reduce((a, b) => ((a[b.wikidata_id] = b), a), {});
 
@@ -219,11 +222,10 @@ ORDER BY ?countryLabel
 
         ${
           hasCapital
-            ? `OPTIONAL { 
-          wd:${game.correctAnswer.capital.value.replace(
-            "http://www.wikidata.org/entity/",
-            ""
-          )} wdt:P625 ?capitalLocation }.`
+            ? `OPTIONAL { wd:${game.correctAnswer.capital.value.replace(
+                "http://www.wikidata.org/entity/",
+                ""
+              )} wdt:P625 ?capitalLocation }.`
             : ""
         }
         
@@ -231,13 +233,12 @@ ORDER BY ?countryLabel
         settings.language
       },${settings.fallbackLanguage}". 
       ?officialLanguage rdfs:label ?officialLanguageLabel .
-   ?spokenLanguage rdfs:label ?spokenLanguageLabel .
-   ?namedAfter rdfs:label ?namedAfterLabel .
-   ?anthem rdfs:label ?anthemLabel .
-  }
+      ?spokenLanguage rdfs:label ?spokenLanguageLabel .
+      ?namedAfter rdfs:label ?namedAfterLabel .
+      ?anthem rdfs:label ?anthemLabel .
+      }
       }
       GROUP BY ?anthemLabel ?anthemAudio ?coatOfArms
-
       `;
 
     queryWikidata(query).then((result) => {
@@ -248,14 +249,31 @@ ORDER BY ?countryLabel
       // DEBUG: Inspect answer data
       // console.log(query, countriesData, game.correctAnswer);
 
+      // Build a point feature for the territory using the capital or centroid data
       let pointLocation;
-
       if (result[0].hasOwnProperty("capitalLocation")) {
-        pointLocation = parse(
-          game.correctAnswer.wikidata.capitalLocation.value
+        pointLocation = Object.assign(
+          {
+            type: "Feature",
+            properties: {
+              name: game.correctAnswer.capitalLabel.value,
+              type: "capital",
+            },
+          },
+          parse(game.correctAnswer.wikidata.capitalLocation.value)
         );
       } else {
-        pointLocation = game.correctAnswer.centroid;
+        pointLocation = {
+          type: "Feature",
+          properties: {
+            name: game.correctAnswer.name_lang,
+            type: "centroid",
+          },
+          geometry: {
+            type: "Point",
+            coordinates: JSON.parse(game.correctAnswer.centroid),
+          },
+        };
       }
       map.getSource("capital-location").setData(pointLocation);
     });
@@ -300,6 +318,7 @@ ORDER BY ?countryLabel
       "waterway-label",
       "natural-point-label",
       "natural-line-label",
+      "roads",
     ].forEach((layerId) =>
       map.setLayoutProperty(layerId, "visibility", "none")
     );
@@ -389,6 +408,13 @@ ORDER BY ?countryLabel
       1,
       0.1,
     ]);
+    map.setPaintProperty("roads", "line-opacity", [
+      "match",
+      ["get", "iso_3166_1"],
+      iso_3166_1,
+      1,
+      0,
+    ]);
   }
 
   // Check if chosen place is correct
@@ -413,6 +439,7 @@ ORDER BY ?countryLabel
       "waterway-label",
       "natural-point-label",
       "natural-line-label",
+      "roads",
     ].forEach((layerId) =>
       map.setLayoutProperty(layerId, "visibility", "visible")
     );
@@ -469,7 +496,7 @@ ORDER BY ?countryLabel
         </div>
       {/if}
     {:else if game.choices}
-      <h4>Identify this country in {game.correctAnswer.subregion}:</h4>
+      <h4>Identify this territory in {game.correctAnswer.subregion}:</h4>
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
           <div
@@ -538,7 +565,7 @@ ORDER BY ?countryLabel
         style="background-color:#1ba3e3"
         href="#map"
         uk-scroll>
-        Try another country
+        Next
       </button>
 
       <div class="uk-card uk-card-default uk-margin-top">
@@ -554,7 +581,7 @@ ORDER BY ?countryLabel
                 </a>
               {/if}
             </div>
-            <div class="uk-width-expand">
+            <div class="uk-width-expand uk-overflow-hidden">
               <h3 class="uk-card-title uk-margin-remove-bottom">
                 {game.correctAnswer.name_lang}
               </h3>
@@ -566,7 +593,6 @@ ORDER BY ?countryLabel
               {/if}
               {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
                 <a
-                  class="uk-overflow-hidden"
                   href={game.correctAnswer.wikidata.website.value}>{game.correctAnswer.wikidata.website.value}</a>
               {/if}
             </div>
