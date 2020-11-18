@@ -26,6 +26,8 @@
     choices: 4,
     viewportWidth: window.innerWidth,
     startingCountryQid: null,
+    difficultyLevel: 0,
+    difficultyLevels: ["😊", "😅", "😂"],
   };
 
   let game = {
@@ -94,12 +96,13 @@
     .filter(
       (d) =>
         (d.worldview == "all" || d.worldview == settings.mapWorldview) &&
-        (d.description == "sovereign state" || d.description == "dependent territory")
-        // DEBUG: Filter specific countries
-        // (d.wikidata_id == "Q142" ||
-        //   d.wikidata_id == "Q1044" ||
-        //   d.wikidata_id == "Q1049" ||
-        //   d.wikidata_id == "Q237")
+        (d.description == "sovereign state" ||
+          d.description == "dependent territory")
+      // DEBUG: Filter specific countries
+      // (d.wikidata_id == "Q142" ||
+      //   d.wikidata_id == "Q1044" ||
+      //   d.wikidata_id == "Q1049" ||
+      //   d.wikidata_id == "Q237")
     )
     .reduce((a, b) => ((a[b.wikidata_id] = b), a), {});
 
@@ -133,10 +136,16 @@ ORDER BY ?countryLabel
     // Join the Wikidata results to the country data object using the qid as lookup key
     result.forEach((d) => {
       let qid = d.country.value.replace("http://www.wikidata.org/entity/", "");
-      Object.assign(countriesData[qid], d);
-      countriesData[qid].wikidata = d;
-      // Augment JSON data from WIkidata results
-      countriesData[qid].name_lang = d.countryLabel.value;
+
+      // Retain only those territories that have a flag from the master list
+      if (d.hasOwnProperty("flag")) {
+        Object.assign(countriesData[qid], d);
+        countriesData[qid].wikidata = d;
+        // Augment JSON data from WIkidata results
+        countriesData[qid].name_lang = d.countryLabel.value;
+      } else {
+        delete countriesData[qid];
+      }
     });
 
     if (!game.dataLoaded) {
@@ -247,7 +256,7 @@ ORDER BY ?countryLabel
         game.correctAnswer.wikidata
       );
       // DEBUG: Inspect answer data
-      // console.log(query, countriesData, game.correctAnswer);
+      console.log(query, countriesData, game.correctAnswer);
 
       // Build a point feature for the territory using the capital or centroid data
       let pointLocation;
@@ -421,6 +430,8 @@ ORDER BY ?countryLabel
   function checkAnswer(code) {
     game.endTurn = true;
 
+    console.log(settings.difficultyLevel, game.score / game.turn, game);
+
     window.scrollTo(0, 0);
 
     // Show country labels
@@ -453,6 +464,13 @@ ORDER BY ?countryLabel
       game.answerIsCorrect = false;
 
       game.answerHistory[game.correctAnswer.wikidata_id].push(false);
+    }
+
+    // Increase difficulty level dynamically
+    if (game.answerIsCorrect && game.turn > 4 && game.score / game.turn > 0.7) {
+      settings.difficultyLevel = 1;
+    } else {
+      settings.difficultyLevel = 0;
     }
 
     game.turn += 1;
@@ -496,7 +514,11 @@ ORDER BY ?countryLabel
         </div>
       {/if}
     {:else if game.choices}
-      <h4>Identify this territory in {game.correctAnswer.subregion}:</h4>
+      <h4>
+        {settings.difficultyLevels[settings.difficultyLevel]}
+        Identify this territory in
+        {game.correctAnswer.subregion}:
+      </h4>
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
           <div
@@ -505,7 +527,7 @@ ORDER BY ?countryLabel
             <div
               data-qid={choice.wikidata_id}
               class="uk-card uk-card-default uk-card-body uk-card-hover">
-              <b>{choice.countryLabel.value}</b>
+              <b>{settings.difficultyLevel == 0 ? choice.countryLabel.value : choice.countryLabel.value.charAt(0) + ".."}</b>
 
               {#if choice.hasOwnProperty('flag')}
                 <img
@@ -565,7 +587,7 @@ ORDER BY ?countryLabel
         style="background-color:#1ba3e3"
         href="#map"
         uk-scroll>
-        Next
+        Try another
       </button>
 
       <div class="uk-card uk-card-default uk-margin-top">
