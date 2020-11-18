@@ -95,8 +95,8 @@
       (d) =>
         (d.worldview == "all" || d.worldview == settings.mapWorldview) &&
         d.disputed == "FALSE"
-        // DEBUG: Filter specific countries
-        // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
+      // DEBUG: Filter specific countries
+      // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
     )
     .reduce((a, b) => ((a[b.wikidata_id] = b), a), {});
 
@@ -138,17 +138,9 @@ ORDER BY ?countryLabel
 
     if (!game.dataLoaded) {
       game.dataLoaded = true;
-      console.log(countriesData[settings.startingCountryQid].iso_3166_1);
-      // map && styleMap(countriesData[settings.startingCountryQid].iso_3166_1)
       map.easeTo({
         bearing: 180,
       });
-
-      // setTimeout(function(){
-      //   map.on("load", function () {
-      //   nextTurn();
-      // });
-      // }, 1000);
     }
   });
 
@@ -284,7 +276,7 @@ ORDER BY ?countryLabel
     map.setPaintProperty("country-boundaries", "fill-opacity", 1);
 
     // Zoom in after 4 seconds
-    timeout = setTimeout(function () {
+    setTimeout(function () {
       map.easeTo({
         center: JSON.parse(game.correctAnswer.centroid),
         zoom: map.getZoom() < 5 ? map.getZoom() : 5,
@@ -302,6 +294,8 @@ ORDER BY ?countryLabel
       "settlement-major-label",
       "poi-label",
       "water-point-label",
+      "water-line-label",
+      "waterway-label",
       "water-line-label",
       "waterway-label",
       "natural-point-label",
