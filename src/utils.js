@@ -1,9 +1,8 @@
 const apiurl = "https://query.wikidata.org/sparql?query=";
 
-
-export function getWorldview(iso_3166_1, locale){
+export function getWorldview(iso_3166_1, locale) {
   let worldview = "US";
-  let supportedWorldViews = ["IN", "JP", "CN", "US"]
+  let supportedWorldViews = ["IN", "JP", "CN", "US"];
 
   let userLocation = iso_3166_1 || locale.split("-")[1].toUpper();
 
@@ -11,13 +10,13 @@ export function getWorldview(iso_3166_1, locale){
     worldview = userLocation;
   }
 
-  return worldview
+  return worldview;
 }
 
 // Query Wikidata using SPARQL
 // https://query.wikidata.org
 
-export async function queryWikidata(sparql){
+export async function queryWikidata(sparql) {
   let response = await fetch(apiurl + encodeURIComponent(sparql), {
     headers: { accept: "application/sparql-results+json" },
   });
@@ -25,7 +24,6 @@ export async function queryWikidata(sparql){
   let data = json.results.bindings;
   return data;
 }
-
 
 // Function to return an array in a random order
 export function shuffle(array) {

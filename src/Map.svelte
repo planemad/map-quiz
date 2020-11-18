@@ -126,6 +126,8 @@
 
     // Use labels from mapbox-streets directly for supported languages
     // Else join translations from Wikidata for country labels
+
+    // For country labels layer
     if (supportedMapLanguages.indexOf(localeLanguage) >= 0) {
       mapTextField = [
         "coalesce",
@@ -136,11 +138,15 @@
     } else {
       let joinTranslationExpression = ["match", ["get", "iso_3166_1"]];
 
+      
+
       Object.keys(data).forEach((qid) => {
         joinTranslationExpression.push([data[qid].iso_3166_1]);
         joinTranslationExpression.push(data[qid].name_lang);
       });
       joinTranslationExpression.push("");
+
+      console.log(joinTranslationExpression)
 
       map.setLayoutProperty(
         "country-label",
@@ -151,8 +157,11 @@
       mapTextField = ["coalesce", ["get", "name_en"], ["get", "name"]];
     }
 
-    map.setLayoutProperty("settlement-minor-label", "text-field", mapTextField);
-    map.setLayoutProperty("settlement-major-label", "text-field", mapTextField);
+    // For other labels layer
+
+    ["settlement-minor-label","settlement-major-label","poi-label","water-point-label","water-line-label","waterway-label","natural-point-label","natural-line-label"].forEach(layerId=>
+      map.setLayoutProperty(layerId, "text-field", mapTextField)
+    )
 
     // Add new boundary to the map
 

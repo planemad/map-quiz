@@ -25,6 +25,7 @@
     mapStyle: "mapbox://styles/planemad/ckgopajx83l581bo6qr5l86yg",
     choices: 4,
     viewportWidth: window.innerWidth,
+    startingCountryQid: null,
   };
 
   let game = {
@@ -37,21 +38,17 @@
     choices: null,
     answerIsCorrect: null,
     answerHistory: {},
-    choices: []
+    choices: [],
   };
 
-  let timeout;
-
   // Customize to user language and location
-  // Use English as fallback
 
   detectLocation();
 
   function detectLocation() {
     settings.language = settings.locale.split("-")[0];
 
-    // Detect user location country
-
+    // Locate user country from IP
     fetchTimeout(
       "https://freegeoip.app/json/",
       {},
@@ -66,8 +63,6 @@
         }
       })
       .then((json) => {
-        // settings.locale += "-" + json.country_code;
-
         settings.mapWorldview = getWorldview(
           json.country_code,
           settings.locale
@@ -93,18 +88,22 @@
       });
   }
 
-  // Build a list of Wikidata qids to query from the Mapbox Countries list
+  // Build a master list of Wikidata qids to query from the Mapbox Countries list
   // Filter by selected worldview and undisputed countries
   let countriesData = countriesLookup
     .filter(
       (d) =>
         (d.worldview == "all" || d.worldview == settings.mapWorldview) &&
         d.disputed == "FALSE"
-      // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
+        // DEBUG: Filter specific countries
+        // && (d.wikidata_id == "Q1044" || d.wikidata_id == "Q1049")
     )
     .reduce((a, b) => ((a[b.wikidata_id] = b), a), {});
 
   let countryQids = Object.keys(countriesData);
+
+  // TODO: Randomize starting country
+  // settings.startingCountryQid = countryQids[(250 * Math.random()) << 0];
 
   // Get list of countries from Wikidata
   let sparql = `
@@ -139,6 +138,11 @@ ORDER BY ?countryLabel
 
     if (!game.dataLoaded) {
       game.dataLoaded = true;
+      console.log(countriesData[settings.startingCountryQid].iso_3166_1);
+      // map && styleMap(countriesData[settings.startingCountryQid].iso_3166_1)
+      map.easeTo({
+        bearing: 180,
+      });
 
       // setTimeout(function(){
       //   map.on("load", function () {
@@ -155,35 +159,43 @@ ORDER BY ?countryLabel
     game.endTurn = false;
 
     map.setPaintProperty("country-boundaries", "fill-opacity", 0);
-    
 
     // Pick a country not yet answered for the round
 
-    let allKeys= Object.keys(countriesData).sort((a, b) => a.localeCompare(b))
-    let unansweredKeys=[];
+    let allKeys = Object.keys(countriesData).sort((a, b) => a.localeCompare(b));
+    let unansweredKeys = [];
 
-    allKeys.forEach(k=>{
-      if(!Object.keys(game.answerHistory).includes(k)){
+    allKeys.forEach((k) => {
+      if (!Object.keys(game.answerHistory).includes(k)) {
         unansweredKeys.push(k);
       }
-    })
+    });
 
-    let selectedKey = unansweredKeys[unansweredKeys.length * Math.random() << 0]
+    let selectedKey =
+      unansweredKeys[(unansweredKeys.length * Math.random()) << 0];
     game.correctAnswer = countriesData[selectedKey];
-    game.answerHistory[game.correctAnswer.wikidata_id]=[]
+    game.answerHistory[game.correctAnswer.wikidata_id] = [];
 
     game.choices = [];
     game.choices.push(game.correctAnswer);
 
     // Add choices similiar to the selected key
-    allKeys.forEach(k=>{
-      if(k != game.correctAnswer.wikidata_id && countriesData[k].subregion ==  game.correctAnswer.subregion && game.choices.length < settings.choices)
-      game.choices.push(countriesData[k]);
-    })
-    allKeys.forEach(k=>{
-      if(k != game.correctAnswer.wikidata_id && countriesData[k].region ==  game.correctAnswer.region && game.choices.length < settings.choices)
-      game.choices.push(countriesData[k]);
-    })
+    allKeys.forEach((k) => {
+      if (
+        k != game.correctAnswer.wikidata_id &&
+        countriesData[k].subregion == game.correctAnswer.subregion &&
+        game.choices.length < settings.choices
+      )
+        game.choices.push(countriesData[k]);
+    });
+    allKeys.forEach((k) => {
+      if (
+        k != game.correctAnswer.wikidata_id &&
+        countriesData[k].region == game.correctAnswer.region &&
+        game.choices.length < settings.choices
+      )
+        game.choices.push(countriesData[k]);
+    });
 
     // Shuffle order of choices
     game.choices = shuffle(game.choices);
@@ -282,11 +294,21 @@ ORDER BY ?countryLabel
   }
 
   // Style the map to highlight a country
-  function styleMap(iso_3166_1, mode) {
+  function styleMap(iso_3166_1) {
     // Hide country labels
-    map.setLayoutProperty("country-label", "visibility", "none");
-    map.setLayoutProperty("settlement-minor-label", "visibility", "none");
-    map.setLayoutProperty("settlement-major-label", "visibility", "none");
+    [
+      "country-label",
+      "settlement-minor-label",
+      "settlement-major-label",
+      "poi-label",
+      "water-point-label",
+      "water-line-label",
+      "waterway-label",
+      "natural-point-label",
+      "natural-line-label",
+    ].forEach((layerId) =>
+      map.setLayoutProperty(layerId, "visibility", "none")
+    );
 
     // Mask country boundary
     map.setPaintProperty("country-boundaries", "fill-color", [
@@ -318,7 +340,7 @@ ORDER BY ?countryLabel
         ["==", ["get", "admin_level"], 0],
         "hsla(0, 0%, 66%,0.5)",
         "hsla(0, 0%, 66%,0)",
-      ]
+      ],
     ]);
 
     map.setLayoutProperty("country-label", "symbol-sort-key", [
@@ -387,21 +409,29 @@ ORDER BY ?countryLabel
       bearing: 0,
       duration: 1000,
     });
-    map.setLayoutProperty("country-label", "visibility", "visible");
-    map.setLayoutProperty("settlement-minor-label", "visibility", "visible");
-    map.setLayoutProperty("settlement-major-label", "visibility", "visible");
-
+    [
+      "country-label",
+      "settlement-minor-label",
+      "settlement-major-label",
+      "poi-label",
+      "water-point-label",
+      "water-line-label",
+      "waterway-label",
+      "natural-point-label",
+      "natural-line-label",
+    ].forEach((layerId) =>
+      map.setLayoutProperty(layerId, "visibility", "visible")
+    );
 
     if (code == game.correctAnswer.countryLabel.value) {
       game.score += 1;
       game.answerIsCorrect = true;
 
-      game.answerHistory[game.correctAnswer.wikidata_id].push(true)
-
+      game.answerHistory[game.correctAnswer.wikidata_id].push(true);
     } else {
       game.answerIsCorrect = false;
 
-      game.answerHistory[game.correctAnswer.wikidata_id].push(false)
+      game.answerHistory[game.correctAnswer.wikidata_id].push(false);
     }
 
     game.turn += 1;
@@ -445,11 +475,7 @@ ORDER BY ?countryLabel
         </div>
       {/if}
     {:else if game.choices}
-      <h4>
-        Indentify this country in
-        {game.correctAnswer.subregion}
-        ({game.correctAnswer.region}):
-      </h4>
+      <h4>Identify this country in {game.correctAnswer.subregion}:</h4>
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
           <div
@@ -458,7 +484,7 @@ ORDER BY ?countryLabel
             <div
               data-qid={choice.wikidata_id}
               class="uk-card uk-card-default uk-card-body uk-card-hover">
-              {choice.countryLabel.value}
+              <b>{choice.countryLabel.value}</b>
 
               {#if choice.hasOwnProperty('flag')}
                 <img
@@ -546,6 +572,7 @@ ORDER BY ?countryLabel
               {/if}
               {#if game.correctAnswer.wikidata.hasOwnProperty('website')}
                 <a
+                  class="uk-overflow-hidden"
                   href={game.correctAnswer.wikidata.website.value}>{game.correctAnswer.wikidata.website.value}</a>
               {/if}
             </div>
@@ -647,6 +674,7 @@ ORDER BY ?countryLabel
   style={settings.mapStyle}
   worldview={settings.mapWorldview}
   locale={settings.locale}
+  qid={settings.startingCountryQid}
   location={{ bounds: JSON.parse(countriesData.Q142.bounds), point: settings.userLocation }}
   data={countriesData}
   bind:map />
