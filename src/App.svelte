@@ -256,7 +256,7 @@ ORDER BY ?countryLabel
         game.correctAnswer.wikidata
       );
       // DEBUG: Inspect answer data
-      console.log(query, countriesData, game.correctAnswer);
+      // console.log(query, countriesData, game.correctAnswer);
 
       // Build a point feature for the territory using the capital or centroid data
       let pointLocation;
@@ -429,8 +429,6 @@ ORDER BY ?countryLabel
   // Check if chosen place is correct
   function checkAnswer(code) {
     game.endTurn = true;
-
-    console.log(settings.difficultyLevel, game.score / game.turn, game);
 
     window.scrollTo(0, 0);
 
