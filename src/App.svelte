@@ -705,7 +705,7 @@ ORDER BY ?countryLabel
         and
         <a href="https://svelte.dev/">Svelte</a>
         |
-        <a href="https://github.com/planemad/map-quiz/tree/main">Source code</a></small>
+        <a href="https://github.com/planemad/map-quiz">Source code</a></small>
     </footer>
   </main>
 </Panel>
