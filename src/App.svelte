@@ -152,6 +152,7 @@ ORDER BY ?countryLabel
       game.dataLoaded = true;
       map.easeTo({
         bearing: 180,
+        duration: 1000,
       });
     }
   });
@@ -465,13 +466,15 @@ ORDER BY ?countryLabel
     }
 
     // Increase difficulty level dynamically
-    if (game.answerIsCorrect && game.turn > 4 && game.score / game.turn > 0.7) {
+    game.turn += 1;
+    if (
+      (game.answerIsCorrect && game.turn > 5 && game.score / game.turn > 0.8)
+    ) {
       settings.difficultyLevel = 1;
     } else {
       settings.difficultyLevel = 0;
     }
 
-    game.turn += 1;
     game.choices = null;
   }
 
@@ -501,22 +504,21 @@ ORDER BY ?countryLabel
           Loading list of countries.
         </h4>
       {:else}
-        <div>
-          <h1>Can you guess the country?</h1>
-          <button
-            on:click={removeIntro}
-            class="uk-button uk-button-primary uk-button-large uk-width-1-1"
-            style="background-color:#1ba3e3">
-            Let's get started!<br />
-          </button>
-        </div>
+        <h1>Can you guess this country?</h1>
+        <button
+          on:click={removeIntro}
+          class="uk-button uk-button-primary uk-button-large uk-width-1-1"
+          style="background-color:#1ba3e3">
+          Let's get started!<br />
+        </button>
       {/if}
     {:else if game.choices}
-      <h4>
-        {settings.difficultyLevels[settings.difficultyLevel]}
-        Identify this territory in
-        {game.correctAnswer.subregion}:
+      <h4>Identify this territory in {game.correctAnswer.subregion}
+        <br><small>
+          {settings.difficultyLevel == 0 ? "" : "You are good! you don't need country names " + settings.difficultyLevels[settings.difficultyLevel] }
+        </small>
       </h4>
+      
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
           <div
@@ -525,7 +527,7 @@ ORDER BY ?countryLabel
             <div
               data-qid={choice.wikidata_id}
               class="uk-card uk-card-default uk-card-body uk-card-hover">
-              <b>{settings.difficultyLevel == 0 ? choice.countryLabel.value : choice.countryLabel.value.charAt(0) + ".."}</b>
+              <b>{settings.difficultyLevel == 0 ? choice.countryLabel.value : choice.countryLabel.value.charAt(0) + choice.countryLabel.value.replace(/./g, '_')}</b>
 
               {#if choice.hasOwnProperty('flag')}
                 <img
@@ -546,39 +548,28 @@ ORDER BY ?countryLabel
         <progress class="uk-progress" value={game.score} max={game.turn} />
       </p>
     {:else if game.endTurn}
-      {#if game.answerIsCorrect}
-        <div class="uk-margin-remove" uk-alert>
+      <div class="uk-margin-remove" uk-alert>
+        {#if game.answerIsCorrect}
           <h3>{game.correctAnswer.name_lang} is <b>correct</b>!</h3>
-          <p>
-            Score
-            {game.score}
-            /
-            {game.turn}
-            {#if game.turn > 0}
-              ({Math.round((game.score / game.turn) * 100)}%)
-            {/if}
-            <progress class="uk-progress" value={game.score} max={game.turn} />
-          </p>
-        </div>
-      {:else}
-        <div class="uk-margin-remove" uk-alert>
+        {:else}
           <h3>Sorry, it was {game.correctAnswer.name_lang}.</h3>
-          <p>
-            Score
-            {game.score}
-            /
-            {game.turn}
-            {#if game.turn > 0}
-              ({Math.round((game.score / game.turn) * 100)}%)
-            {/if}
-            <progress
-              class="uk-progress"
-              value={game.score}
-              max={game.turn}
-              style="background-color:red" />
-          </p>
-        </div>
-      {/if}
+        {/if}
+        <p>
+          Score
+          {game.score}
+          /
+          {game.turn}
+          {#if game.turn > 0}
+            ({Math.round((game.score / game.turn) * 100)}%)
+          {/if}
+          <progress
+            class="uk-progress"
+            value={game.score}
+            max={game.turn}
+            style="background-color:red" />
+        </p>
+      </div>
+
       <button
         on:click={nextTurn}
         class="uk-button uk-button-primary uk-button-large uk-width-1-1"
