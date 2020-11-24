@@ -38,8 +38,11 @@
     link.href = "https://unpkg.com/mapbox-gl/dist/mapbox-gl.css";
 
     link.onload = () => {
-      mapbox.accessToken =
-        "pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiemdYSVVLRSJ9.g3lbg_eN0kztmsfIPxa9MQ";
+      
+      // Use Mapbox Labs token when served from labs.mapbox.com
+      const is_mapbox_hosted = window.location.href.indexOf("mapbox.com") > -1 ? true : false;
+      mapbox.accessToken = is_mapbox_hosted ? "pk.eyJ1IjoibGFicy1zYW5kYm94IiwiYSI6ImNrMTZuanRtdTE3cW4zZG56bHR6MnBkZG4ifQ.YGRP0sZNYdLw5_jSa9IvXg" : "pk.eyJ1IjoicGxhbmVtYWQiLCJhIjoiY2todmxnbDFyMDFmcDJ5cGthZ2Vqenh3OSJ9.Plw3yyu23yPZFPIiuatpKQ";
+
       map = new mapbox.Map({
         container,
         style: style,

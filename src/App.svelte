@@ -550,9 +550,9 @@ ORDER BY ?countryLabel
     {:else if game.endTurn}
       <div class="uk-margin-remove" uk-alert>
         {#if game.answerIsCorrect}
-          <h3>{game.correctAnswer.name_lang} is <b>correct</b>!</h3>
+          <h3>{game.correctAnswer.name_lang} is <b>correct</b> ✔</h3>
         {:else}
-          <h3>Sorry, it was {game.correctAnswer.name_lang}.</h3>
+          <h3>Sorry, it was {game.correctAnswer.name_lang} ✘</h3>
         {/if}
         <p>
           Score
