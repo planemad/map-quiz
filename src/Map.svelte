@@ -92,7 +92,6 @@
     ];
 
     map.setFilter("country-boundaries", worldviewFilter);
-    map.setFilter("country-boundaries-outline", worldviewFilter);
     map.setFilter("admin-boundaries-line", worldviewFilter);
 
     map.setLayoutProperty("country-label", "visibility", "none");
