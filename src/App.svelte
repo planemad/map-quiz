@@ -27,7 +27,6 @@
     viewportWidth: window.innerWidth,
     startingCountryQid: null,
     difficultyLevel: 0,
-    difficultyLevels: ["😊", "😅", "😂"],
   };
 
   let game = {
@@ -178,21 +177,28 @@ ORDER BY ?countryLabel
 
     // Pick a random country key
     game.correctAnswer = null;
-    while ( game.correctAnswer == null ) {
+    while (game.correctAnswer == null) {
       // console.log(game.correctAnswer)
-      let selectedKey = unansweredKeys[(unansweredKeys.length * Math.random()) << 0]
-        let selectedCountry = countriesData[selectedKey]
-        
-        // Decide minimum country size by difficulty level
-        if(settings.difficultyLevel == 0 && parseInt(selectedCountry.area_sqkm)>500000){
-          game.correctAnswer = selectedCountry
-        }
-        if(settings.difficultyLevel == 1 && parseInt(selectedCountry.area_sqkm)>50000){
-          game.correctAnswer = selectedCountry
-        }
-        if(settings.difficultyLevel == 2 ){
-          game.correctAnswer = selectedCountry
-        }
+      let selectedKey =
+        unansweredKeys[(unansweredKeys.length * Math.random()) << 0];
+      let selectedCountry = countriesData[selectedKey];
+
+      // Decide minimum country size by difficulty level
+      if (
+        settings.difficultyLevel == 0 &&
+        parseInt(selectedCountry.area_sqkm) > 500000
+      ) {
+        game.correctAnswer = selectedCountry;
+      }
+      if (
+        settings.difficultyLevel == 1 &&
+        parseInt(selectedCountry.area_sqkm) > 50000
+      ) {
+        game.correctAnswer = selectedCountry;
+      }
+      if (settings.difficultyLevel == 2) {
+        game.correctAnswer = selectedCountry;
+      }
     }
     game.answerHistory[game.correctAnswer.wikidata_id] = [];
 
@@ -482,13 +488,9 @@ ORDER BY ?countryLabel
 
     // Increase difficulty level dynamically
     game.turn += 1;
-    if (game.answerIsCorrect && game.turn > 20 && game.score / game.turn > 0.8) {
+    if (game.turn > 20 && game.score / game.turn > 0.9) {
       settings.difficultyLevel = 2;
-    } else if (
-      game.answerIsCorrect &&
-      game.turn > 10 &&
-      game.score / game.turn > 0.4
-    ) {
+    } else if (game.turn > 0 && game.score / game.turn > 0.8) {
       settings.difficultyLevel = 1;
     } else {
       settings.difficultyLevel = 0;
@@ -499,7 +501,7 @@ ORDER BY ?countryLabel
 
   // Retrieve commons thumbnail image from url
   function commonsImage(filePath, width) {
-    return `${filePath}?width=${width}px`;
+    return `${filePath}?width=${width}px`.replace("http:", "https:");
   }
 
   function removeIntro() {
@@ -533,17 +535,6 @@ ORDER BY ?countryLabel
       {/if}
     {:else if game.choices}
       <h4>Identify this territory in {game.correctAnswer.subregion}:</h4>
-      <p>
-        <small>
-          {#if settings.difficultyLevel == 0}
-
-          {:else if settings.difficultyLevel == 1}
-            {'Ferdinand Magellan mode activated! Check your map compass for North ' + settings.difficultyLevels[settings.difficultyLevel]}
-          {:else if settings.difficultyLevel == 2}
-            {'Marco Polo mode activated! Hiding country names ' + settings.difficultyLevels[settings.difficultyLevel]}
-          {/if}
-        </small>
-      </p>
 
       <div class="uk-child-width-expand uk-grid-small uk-grid-match" uk-grid>
         {#each game.choices as choice}
@@ -571,37 +562,41 @@ ORDER BY ?countryLabel
           </div>
         {/each}
       </div>
-      <p>
-        Score
-        {game.score}
-        /
-        {game.turn}
-        {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
-        <progress class="uk-progress" value={game.score} max={game.turn} />
-      </p>
-    {:else if game.endTurn}
-      <div class="uk-margin-remove" uk-alert>
-        {#if game.answerIsCorrect}
-          <h3>{game.correctAnswer.name_lang} is <b>correct</b> ✔</h3>
-        {:else}
-          <h3>Sorry, it was {game.correctAnswer.name_lang} ✘</h3>
-        {/if}
-        <p>
-          Score
-          {game.score}
-          /
-          {game.turn}
-          {#if game.turn > 0}
-            ({Math.round((game.score / game.turn) * 100)}%)
-          {/if}
-          <progress
-            class="uk-progress"
-            value={game.score}
-            max={game.turn}
-            style="background-color:red" />
-        </p>
-      </div>
+    {/if}
 
+    {#if game.endTurn}
+      {#if game.answerIsCorrect}
+        <h3>{game.correctAnswer.name_lang} is <b>correct</b> ✔</h3>
+      {:else}
+        <h3>Sorry, it was {game.correctAnswer.name_lang} ✘</h3>
+      {/if}
+    {/if}
+
+    <p>
+      <b>Difficulty: </b>
+      {#if settings.difficultyLevel == 0}
+        Atlas crawler 🕵️
+      {:else if settings.difficultyLevel == 1}
+        Ferdinand Magellan.
+        <i>Check your map compass!</i>
+        🧐
+        <img
+          src="data:image/svg+xml;charset=utf-8,%3Csvg width='29' height='29' viewBox='0 0 29 29' xmlns='http://www.w3.org/2000/svg' fill='%23333'%3E%3Cpath d='M10.5 14l4-8 4 8h-8z'/%3E%3Cpath d='M10.5 16l4 8 4-8h-8z' fill='%23ccc'/%3E%3C/svg%3E" />
+      {:else if settings.difficultyLevel == 2}
+        Marco Polo.
+        <i>You only need flags!</i>
+        🤠
+      {/if}
+      <br />
+      Score
+      {game.score}
+      /
+      {game.turn}
+      {#if game.turn > 0}({Math.round((game.score / game.turn) * 100)}%){/if}
+      <progress class="uk-progress" value={game.score} max={game.turn} />
+    </p>
+
+    {#if game.endTurn}
       <button
         on:click={nextTurn}
         class="uk-button uk-button-primary uk-button-large uk-width-1-1"
